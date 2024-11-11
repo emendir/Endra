@@ -1,0 +1,111 @@
+import walytis_beta_api as waly
+import os
+import shutil
+import tempfile
+
+import _testing_utils
+import walidentity
+import pytest
+import walytis_beta_api as walytis_api
+from _testing_utils import mark, test_threads_cleanup
+from walidentity.did_objects import Key
+import mutablockchain
+import private_blocks
+import endra
+from endra import Profile, MessageContent
+walytis_api.log.PRINT_DEBUG = False
+
+_testing_utils.assert_is_loaded_from_source(
+    source_dir=os.path.dirname(os.path.dirname(__file__)), module=endra
+)
+_testing_utils.assert_is_loaded_from_source(
+    source_dir=os.path.join(os.path.dirname(__file__), "..", ".."), module=walidentity
+)
+_testing_utils.assert_is_loaded_from_source(
+    source_dir=os.path.join(os.path.dirname(__file__), "..", ".."), module=private_blocks
+)
+_testing_utils.assert_is_loaded_from_source(
+    source_dir=os.path.join(os.path.dirname(__file__), "..", ".."), module=mutablockchain
+)
+
+REBUILD_DOCKER = True
+
+# automatically remove all docker containers after failed tests
+DELETE_ALL_BRENTHY_DOCKERS = True
+
+from datetime import datetime
+def test_preparations():
+    pytest.correspondence=None
+    pytest.profile=None
+    pytest.profile_config_dir = tempfile.mkdtemp()
+    pytest.key_store_path = os.path.join(
+        pytest.profile_config_dir, "keystore.json")
+
+    # the cryptographic family to use for the tests
+    pytest.CRYPTO_FAMILY = "EC-secp256k1"
+    pytest.KEY= Key(
+        family=pytest.CRYPTO_FAMILY,
+        public_key=b'\x04\xa6#\x1a\xcf\xa7\xbe\xa8\xbf\xd9\x7fd\xa7\xab\xba\xeb{Wj\xe2\x8fH\x08*J\xda\xebS\x94\x06\xc9\x02\x8c9>\xf45\xd3=Zg\x92M\x84\xb3\xc2\xf2\xf4\xe6\xa8\xf9i\x82\xdb\xd8\x82_\xcaIT\x14\x9cA\xd3\xe1',
+        private_key=b'\xd9\xd1\\D\x80\xd7\x1a\xe6E\x0bt\xdf\xd0z\x88\xeaQ\xe8\x04\x91\x11\xaf\\%wC\x83~\x0eGP\xd8',
+        creation_time=datetime(2024, 11, 6, 19, 17, 45, 713000)
+    )
+
+def test_cleanup():
+    if pytest.correspondence:
+        pytest.correspondence.delete()
+    if pytest.profile:
+        pytest.profile.delete()
+    shutil.rmtree(pytest.profile_config_dir)
+
+
+def test_create_profile():
+    pytest.profile = Profile.create(pytest.profile_config_dir, pytest.KEY)
+    existing_blockchain_ids = waly.list_blockchain_ids()
+    mark(
+        pytest.profile.profile_did_manager.blockchain.blockchain_id in existing_blockchain_ids and
+        pytest.profile.profile_did_manager.member_did_manager.blockchain.blockchain_id in existing_blockchain_ids,
+        "Created profile."
+    )
+
+
+def test_create_correspondence():
+    pytest.correspondence = pytest.profile.correspondences.add()
+    mark(
+        pytest.correspondence.did in pytest.profile.correspondences.get_ids(),
+        "Created correspondence."
+    )
+
+
+def test_create_message():
+    message_content = MessageContent(
+        "Hello there!", None
+    )
+    print(message_content.to_json())
+    pytest.correspondence.add_message(message_content)
+
+
+def test_delete_profile():
+    pytest.profile.delete()
+    existing_blockchain_ids = waly.list_blockchain_ids()
+    mark(
+        pytest.profile.profile_did_manager.blockchain.blockchain_id not in existing_blockchain_ids and
+        pytest.profile.profile_did_manager.member_did_manager.blockchain.blockchain_id not in existing_blockchain_ids,
+        "Deleted profile."
+    )
+
+
+def run_tests():
+    print("\nRunning tests for Peer Parley:")
+    test_preparations()
+    test_create_profile()
+    test_create_correspondence()
+    test_create_message()
+    test_delete_profile()
+    test_cleanup()
+    test_threads_cleanup()
+
+
+if __name__ == "__main__":
+    _testing_utils.PYTEST = False
+    _testing_utils.BREAKPOINTS = True
+    run_tests()

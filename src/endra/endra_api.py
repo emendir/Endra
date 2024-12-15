@@ -1,3 +1,4 @@
+from walidentity.did_manager import blockchain_id_from_did
 import os
 from walytis_beta_api import decode_short_id
 from brenthy_tools_beta.utils import bytes_to_string
@@ -113,7 +114,7 @@ class Correspondence:
 
     @classmethod
     def create(
-        cls, group_key_store: KeyStore, member: DidManager
+        cls, group_key_store: KeyStore | str, member: DidManager
     ) -> 'Correspondence':
 
         return cls(GroupDidManager.create(group_key_store, member))
@@ -132,6 +133,7 @@ class Correspondence:
 
     def __del__(self):
         self.blockchain.terminate()
+
     @property
     def did(self):
         return self.blockchain.base_blockchain.group_blockchain.did
@@ -147,6 +149,7 @@ class CorrespondenceRegistration(InfoBlock):
     def create(
         cls, correspondence_id: str, active: bool
     ) -> 'CorrespondenceRegistration':
+
         info_content = {
             "correspondence_blockchain": correspondence_id,
             "active": active
@@ -161,23 +164,51 @@ class CorrespondenceRegistration(InfoBlock):
     def active(self):
         return self.info_content["active"]
 
+
 class CorrespondenceManager:
-    def __init__(self,profile_did_manager:GroupDidManager):
-        self.profile_did_manager=profile_did_manager
-    def add(self) -> Correspondence:
-        key_store_dir = os.path.dirname(
+    """Manages a collection of correspondences, managing adding archiving them.
+
+
+    """
+
+    def __init__(self, profile_did_manager: GroupDidManager):
+        self.profile_did_manager = profile_did_manager
+        self.key_store_dir = os.path.dirname(
             self.profile_did_manager.key_store.key_store_path
         )
+
+        # cached list of archived  Correspondence IDs
+        self._archived_corresp_ids: set[str] = set()
+        self.correspondences: dict[str, Correspondence] = dict()
+        self._load_correspondences()  # load Correspondence objects
+
+    def add(self) -> Correspondence:
+        # the GroupDidManager keystore file is located in self.key_store_dir
+        # and named according to the created GroupDidManager's blockchain ID
+        # and its KeyStore's key is automatically added to
+        # self.profile_did_manager.key_store
         correspondence = Correspondence.create(
-            key_store_dir, member=self.profile_did_manager
+            self.key_store_dir, member=self.profile_did_manager
         )
+
+        # register Correspondence on blockchain
         self._register_correspondence(
             correspondence.did, True
         )
+
+        # add to internal collection of Correspondence objects
+        self.correspondences.update({correspondence.did: correspondence})
         return correspondence
 
     def archive(self, correspondence_id: str):
+        self.correspondences[correspondence_id].terminate()
+
+        # register archiving on blockchain
         self._register_correspondence(correspondence_id, False)
+
+        # manage internal lists of Correspondences
+        self.correspondences.pop(correspondence_id)
+        self._archived_corresp_ids.add(correspondence_id)
 
     def _register_correspondence(self, correspondence_id: str, active: bool):
         """Update a correspondence' registration, activating or archiving it.
@@ -199,27 +230,92 @@ class CorrespondenceManager:
             topics=correspondence_registration.walytis_block_topic
         )
 
-    def get_ids(self) -> set[str]:
-        correspondence_ids = set()
+    def _read_correspondence_registry(self) -> tuple[set[str], set[str]]:
+        """Get lists of active and archived Correspondences.
+
+        Reads the profile_did_manager blockchain to get this information.
+
+        Returns:
+            tuple[set[str], set[str]]: list of active and list of archived
+                                        Correspondence IDs
+        """
+        active_correspondences: set[str] = set()
+        archived_correspondences: set[str] = set()
         for block in self.profile_did_manager.blockchain.get_blocks():
-            if (CorrespondenceRegistration.walytis_block_topic
+            # ignore blocks that aren't CorrespondenceRegistration
+            if (
+                CorrespondenceRegistration.walytis_block_topic
                 not in block.topics
-                ):
+            ):
                 continue
-            block = self.profile_did_manager.blockchain.get_block(block.long_id)
+
+            # load CorrespondenceRegistration
             crsp_registration = CorrespondenceRegistration.load_from_block_content(
-                block.content
+                self.profile_did_manager.blockchain.get_block(
+                    block.long_id
+                ).content
             )
             correspondence_bc_id = crsp_registration.correspondence_blockchain
+
+            # update lists of active and archived Correspondences
             if crsp_registration.active:
-                correspondence_ids.add(correspondence_bc_id)
-            elif correspondence_bc_id in correspondence_ids:
-                correspondence_ids.remove(correspondence_bc_id)
-        return correspondence_ids
+                active_correspondences.add(correspondence_bc_id)
+                if correspondence_bc_id in archived_correspondences:
+                    archived_correspondences.remove(correspondence_bc_id)
+            else:
+                archived_correspondences.add(correspondence_bc_id)
+                if correspondence_bc_id in active_correspondences:
+                    active_correspondences.remove(correspondence_bc_id)
+
+        return active_correspondences, archived_correspondences
+
+    def get_active_ids(self) -> set[str]:
+        return set(self.correspondences.keys())
+
+    def get_archived_ids(self) -> set[str]:
+        return self._archived_corresp_ids
+
+    def get_from_id(self, corresp_id: str) -> Correspondence:
+        return self.correspondences[corresp_id]
+
+    def _load_correspondences(self) -> None:
+        correspondences = []
+
+        active_correspondence_ds, _archived_corresp_ids = self._read_correspondence_registry()
+        for correspondence_id in active_correspondence_ds:
+            # figure out the filepath of this correspondence' KeyStore
+            key_store_path = os.path.join(
+                self.key_store_dir,
+                blockchain_id_from_did(correspondence_id) + ".json"
+            )
+            # get this correspondence' KeyStore Key ID
+            keystore_key_id = KeyStore.get_keystore_pubkey(key_store_path)
+            # get the Key from self.profile_did_manager's KeyStore
+            key_store_key = self.profile_did_manager.key_store.get_key(
+                keystore_key_id
+            )
+            # load the correspondence' KeyStore
+            key_store = KeyStore(key_store_path, key_store_key)
+            correspondence = Correspondence(
+                group_did_manager=GroupDidManager(
+                    key_store,
+                    self.profile_did_manager
+                )
+            )
+            correspondences.append(correspondence)
+        self.correspondences = dict([
+            (correspondence.did, correspondence)
+            for correspondence in correspondences
+        ])
+        self._archived_corresp_ids = _archived_corresp_ids
+
     def terminate(self):
         pass
+
     def delete(self):
         pass
+
+
 CRYPTO_FAMILY = "EC-secp256k1"
 
 
@@ -232,7 +328,7 @@ class Profile:
         profile_did_manager: GroupDidManager,
     ):
         self.profile_did_manager = profile_did_manager
-        self.correspondences = CorrespondenceManager(
+        self.corresp_mngr = CorrespondenceManager(
             profile_did_manager=self.profile_did_manager
         )
 
@@ -248,17 +344,18 @@ class Profile:
         profile_did_manager = GroupDidManager.create(
             profile_did_keystore, device_did_manager
         )
-        
+
         return cls(
             profile_did_manager=profile_did_manager,
         )
 
     def delete(self):
         self.profile_did_manager.delete()
-        self.correspondences.delete()
+        self.corresp_mngr.delete()
+
     def terminate(self):
         self.profile_did_manager.terminate()
-        self.correspondences.terminate()
+        self.corresp_mngr.terminate()
 
     def __del__(self):
         self.terminate()

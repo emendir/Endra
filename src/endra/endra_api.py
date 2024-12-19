@@ -344,11 +344,48 @@ class Profile:
         profile_did_manager = GroupDidManager.create(
             profile_did_keystore, device_did_manager
         )
+        device_did_keystore = KeyStore(device_keystore_path, key)
+        profile_did_keystore = KeyStore(profile_keystore_path, key)
 
         return cls(
             profile_did_manager=profile_did_manager,
         )
-
+    @classmethod
+    def load(cls, config_dir:str, key:Key)-> 'Profile':
+        device_keystore_path = os.path.join(config_dir, "device_keystore.json")
+        profile_keystore_path = os.path.join(config_dir, "profile_keystore.json")
+        
+        device_did_keystore = KeyStore(device_keystore_path, key)
+        profile_did_keystore = KeyStore(profile_keystore_path, key)
+        
+        profile_did_manager = GroupDidManager(
+            profile_did_keystore, device_did_keystore
+        )
+        return cls(
+            profile_did_manager=profile_did_manager,
+        )
+    
+    def invite(self)->dict:
+        return self.profile_did_manager.invite_member()
+    @classmethod
+    def join(cls, 
+        invitation: str | dict, config_dir:str, key:Key
+    )->'Profile':
+        device_keystore_path = os.path.join(config_dir, "device_keystore.json")
+        profile_keystore_path = os.path.join(
+            config_dir, "profile_keystore.json")
+        device_did_keystore = KeyStore(device_keystore_path, key)
+        profile_did_keystore = KeyStore(profile_keystore_path, key)
+        device_did_manager = DidManager.create(device_did_keystore)
+        
+        profile_did_manager = GroupDidManager.join(
+            invitation,
+            profile_did_keystore,
+            device_did_manager
+        )
+        return cls(
+            profile_did_manager=profile_did_manager,
+        )
     def delete(self):
         self.profile_did_manager.delete()
         self.corresp_mngr.delete()

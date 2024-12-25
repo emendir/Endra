@@ -1,3 +1,4 @@
+from time import sleep
 from termcolor import colored as coloured
 from brenthy_tools_beta.utils import function_name
 from datetime import datetime
@@ -62,7 +63,6 @@ pytest.corresp = None
 pytest.profile = None
 pytest.profile_config_dir = "/tmp/endra_test_multi_dev"
 pytest.containers: list[EndraDocker] = []
-pytest.invitation = dict()
 
 
 def test_preparations():
@@ -118,7 +118,7 @@ def docker_load_profile():
     pytest.profile = Profile.load(pytest.profile_config_dir, pytest.KEY)
 
 
-def test_setup_profile():
+def test_setup_profile(docker_container:EndraDocker):
     """In a docker container, create an Endra profile."""
     print(coloured(f"\n\nRunning {function_name()}", "blue"))
 
@@ -129,8 +129,8 @@ def test_setup_profile():
         "pytest.profile.terminate()",
     ])
     print(
-        f"docker exec -it {pytest.containers[0].docker_id} /bin/tail -f {LOG_PATH}")
-    output_lines = pytest.containers[0].run_python_code(
+        f"docker exec -it {docker_container.docker_id} /bin/tail -f {LOG_PATH}")
+    output_lines = docker_container.run_python_code(
         python_code, print_output=False, timeout=60, background=False
     ).split("\n")
     last_line = output_lines[-1] if len(output_lines) > 0 else None
@@ -140,8 +140,16 @@ def test_setup_profile():
     )
 
 
-def test_load_profile():
-    """In a docker container, load an existing Endra profile."""
+def test_load_profile(docker_container: EndraDocker) -> dict | None:
+    """In a docker container, load an Endra profile & create an invitation.
+
+    The docker container must already have had the Endra profile set up.
+
+    Args:
+        docker_container: the docker container in which to load the profile
+    Returns:
+        dict: an invitation to allow another device to join the profile
+    """
     print(coloured(f"\n\nRunning {function_name()}", "blue"))
     python_code = "\n".join([
         DOCKER_PYTHON_LOAD_TESTING_CODE,
@@ -152,7 +160,7 @@ def test_load_profile():
         "pytest.profile.terminate()",
     ])
 
-    output_lines = pytest.containers[0].run_python_code(
+    output_lines = docker_container.run_python_code(
         python_code, print_output=False, timeout=60, background=False
     ).split("\n")
     if len(output_lines) < 2:
@@ -160,47 +168,71 @@ def test_load_profile():
             False,
             function_name()
         )
-        return
+        return None
     last_line = output_lines[-1].strip()
-    pytest.invitation = json.loads(output_lines[-2].strip().replace("'", '"'))
+    invitation = json.loads(output_lines[-2].strip().replace("'", '"'))
     mark(
         last_line == "DOCKER: Loaded Profile: <class 'endra.endra_api.Profile'>",
         function_name()
     )
 
+    return invitation
 
 
-def docker_join_profile(invitation:str):
+def docker_join_profile(invitation: str):
+    logger.info("Joining Endra profile...")
     pytest.profile = Profile.join(
         invitation, pytest.profile_config_dir, pytest.KEY
     )
-    pytest.profile.profile_did_manager.member_did_manager.did
-    pytest.profile.profile_did_manager.get_control_key()
-    sleep(30)
-    ctrl_key=pytest.profile.profile_did_manager.get_control_key()
+    logger.info("Joined Endra profile, waiting to get control key...")
+
+    sleep(10)
+    ctrl_key = pytest.profile.profile_did_manager.get_control_key()
+    logger.info(f"Joined: {type(ctrl_key)}")
     if ctrl_key.private_key:
         print("Got control key!")
-def test_add_device():
-    print(coloured(f"\n\nRunning {function_name()}", "blue"))
+
+
+def test_add_device(
+    docker_container_new: EndraDocker,
+    docker_container_old: EndraDocker,
+    invitation: dict
+) -> None:
+    """
+    Join an existing Endra profile on a new docker container.
     
+    Args:
+        docker_container_new: the container on which to set up Endra, joining
+            the existing Endra profile
+        docker_container_old; the container on which the Endra profile is
+            already set up
+        invitation: the invitation that allows the new docker container to join
+            the Endra profile
+    """
+    print(coloured(f"\n\nRunning {function_name()}", "blue"))
+
     python_code = "\n".join([
         DOCKER_PYTHON_LOAD_TESTING_CODE,
         "test_multi_dev.docker_load_profile()",
-        "sleep(60)",
+        "logger.info('Waiting to allow new device to join...')",
+        "sleep(30)",
+        "logger.info('Finished waiting, terminating...')",
         "pytest.profile.terminate()",
+        "logger.info('Exiting after waiting.')",
+        
     ])
-    pytest.containers[0].run_python_code(
+    docker_container_old.run_python_code(
         python_code, print_output=False, background=True
     )
     python_code = "\n".join([
         DOCKER_PYTHON_LOAD_TESTING_CODE,
-        f"test_multi_dev.docker_join_profile('{json.dumps(pytest.invitation)}')",
-        "sleep(40)",
+        f"test_multi_dev.docker_join_profile('{
+            json.dumps(invitation)}')",
         "pytest.profile.terminate()",
     ])
     print("Joining...")
-    output_lines = pytest.containers[1].run_python_code(
-        python_code, timeout=60, print_output=False, background=False
+    output_lines = docker_container_new.run_python_code(
+        python_code, timeout=40, print_output=False, background=False
     ).split("\n")
     last_line = output_lines[-1].strip()
     last_line
@@ -208,7 +240,7 @@ def test_add_device():
         last_line == "Got control key!",
         function_name()
     )
-from time import sleep
+
 
 def test_create_conversation():
     print(coloured(f"\n\nRunning {function_name()}", "blue"))
@@ -223,10 +255,13 @@ def run_tests():
     test_cleanup()
     test_preparations()
     test_create_docker_containers()
-    test_setup_profile()
-    test_load_profile()
-    
-    test_add_device()
+
+    # create first profile with multiple devices
+    test_setup_profile(pytest.containers[0])
+    invitation = test_load_profile(pytest.containers[0])
+    test_add_device(pytest.containers[1], pytest.containers[0], invitation)
+
+    # create second profile with multiple devices
     test_cleanup()
     test_threads_cleanup()
 

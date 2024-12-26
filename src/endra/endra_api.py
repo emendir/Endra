@@ -125,6 +125,16 @@ class Correspondence:
     def add_message(self, message_content: MessageContent) -> Message:
         return Message.create(self, message_content)
 
+    def invite(self) -> dict:
+        return self.blockchain.base_blockchain.group_blockchain.invite_member()
+    @classmethod
+    def join(
+        cls, invitation: dict | str,
+        group_key_store: KeyStore | str,
+        member: DidManager
+    ) -> 'Correspondence':
+        return cls(GroupDidManager.join(invitation, group_key_store, member))
+
     def delete(self):
         self.blockchain.delete()
 
@@ -189,6 +199,26 @@ class CorrespondenceManager:
         # self.profile_did_manager.key_store
         correspondence = Correspondence.create(
             self.key_store_dir, member=self.profile_did_manager
+        )
+
+        # register Correspondence on blockchain
+        self._register_correspondence(
+            correspondence.did, True
+        )
+
+        # add to internal collection of Correspondence objects
+        self.correspondences.update({correspondence.did: correspondence})
+        return correspondence
+
+    def join(self, invitation:dict|str) -> Correspondence:
+        # the GroupDidManager keystore file is located in self.key_store_dir
+        # and named according to the created GroupDidManager's blockchain ID
+        # and its KeyStore's key is automatically added to
+        # self.profile_did_manager.key_store
+        correspondence = Correspondence.join(
+            invitation=invitation,
+            group_key_store=self.key_store_dir,
+            member=self.profile_did_manager
         )
 
         # register Correspondence on blockchain
@@ -350,34 +380,37 @@ class Profile:
         return cls(
             profile_did_manager=profile_did_manager,
         )
+
     @classmethod
-    def load(cls, config_dir:str, key:Key)-> 'Profile':
+    def load(cls, config_dir: str, key: Key) -> 'Profile':
         device_keystore_path = os.path.join(config_dir, "device_keystore.json")
-        profile_keystore_path = os.path.join(config_dir, "profile_keystore.json")
-        
+        profile_keystore_path = os.path.join(
+            config_dir, "profile_keystore.json")
+
         device_did_keystore = KeyStore(device_keystore_path, key)
         profile_did_keystore = KeyStore(profile_keystore_path, key)
-        
+
         profile_did_manager = GroupDidManager(
             profile_did_keystore, device_did_keystore
         )
         return cls(
             profile_did_manager=profile_did_manager,
         )
-    
-    def invite(self)->dict:
+
+    def invite(self) -> dict:
         return self.profile_did_manager.invite_member()
+
     @classmethod
-    def join(cls, 
-        invitation: str | dict, config_dir:str, key:Key
-    )->'Profile':
+    def join(cls,
+             invitation: str | dict, config_dir: str, key: Key
+             ) -> 'Profile':
         device_keystore_path = os.path.join(config_dir, "device_keystore.json")
         profile_keystore_path = os.path.join(
             config_dir, "profile_keystore.json")
         device_did_keystore = KeyStore(device_keystore_path, key)
         profile_did_keystore = KeyStore(profile_keystore_path, key)
         device_did_manager = DidManager.create(device_did_keystore)
-        
+
         profile_did_manager = GroupDidManager.join(
             invitation,
             profile_did_keystore,
@@ -386,6 +419,7 @@ class Profile:
         return cls(
             profile_did_manager=profile_did_manager,
         )
+
     def delete(self):
         self.profile_did_manager.delete()
         self.corresp_mngr.delete()

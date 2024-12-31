@@ -1,3 +1,4 @@
+from threading import Thread
 from walidentity.did_manager import did_from_blockchain_id
 from time import sleep
 from termcolor import colored as coloured
@@ -92,10 +93,19 @@ def test_preparations():
 
 
 def test_create_docker_containers():
+    print("Setting up docker containers...")
+    threads = []
     for i in range(N_DOCKER_CONTAINERS):
-        pytest.containers.append(
-            EndraDocker(container_name=f"{CONTAINER_NAME_PREFIX}{i}")
-        )
+        def task(number):
+            pytest.containers.append(
+                EndraDocker(container_name=f"{CONTAINER_NAME_PREFIX}{number}")
+            )
+        thread = Thread(target=task, args=(i,))
+        thread.start()
+        threads.append(thread)
+    for thread in threads:
+        thread.join()
+    print("Set up docker containers.")
 
 
 def test_cleanup():
@@ -131,7 +141,8 @@ def test_setup_profile(docker_container: EndraDocker):
         "pytest.profile.terminate()",
     ])
     output_lines = docker_container.run_python_code(
-        python_code, print_output=False, timeout=PROFILE_CREATE_TIMEOUT_S, background=False
+        python_code, print_output=False, timeout=PROFILE_CREATE_TIMEOUT_S,
+         background=False
     ).split("\n")
     last_line = output_lines[-1] if len(output_lines) > 0 else None
     mark(
@@ -238,7 +249,8 @@ def test_add_device(
     ])
     print("Joining...")
     output_lines = docker_container_new.run_python_code(
-        python_code, timeout=PROFILE_JOIN_TIMEOUT_S + 5, print_output=False, background=False
+        python_code, timeout=PROFILE_JOIN_TIMEOUT_S + 5, print_output=False,
+         background=False
     ).split("\n")
     last_line = output_lines[-1].strip()
     last_line
@@ -310,6 +322,7 @@ def test_join_correspondence(
     docker_container_new: EndraDocker,
     invitation: dict
 ) -> None:
+    print(coloured(f"\n\nRunning {function_name()}", "blue"))
     python_code = "\n".join([
         DOCKER_PYTHON_LOAD_TESTING_CODE,
         "test_multi_dev.docker_load_profile()",
@@ -334,8 +347,8 @@ def test_join_correspondence(
     ])
     print("Joining...")
     output_lines = docker_container_new.run_python_code(
-        python_code, timeout=CORRESP_JOIN_TIMEOUT_S + 5, 
-        print_output=False, background=False
+        python_code, timeout=CORRESP_JOIN_TIMEOUT_S + 5,
+        print_output=True, background=False
     ).split("\n")
     second_last_line = output_lines[-2].strip()
     corresp_id = output_lines[-1].strip()
@@ -345,6 +358,52 @@ def test_join_correspondence(
     mark(
         second_last_line == "Got control key!" and
         corresp_id == expected_corresp_id,
+        function_name()
+    )
+
+
+def test_auto_join_correspondence(
+    docker_container_old: EndraDocker,
+    docker_container_new: EndraDocker,
+    correspondence_id: str
+) -> None:
+    print(coloured(f"\n\nRunning {function_name()}", "blue"))
+    python_code = "\n".join([
+        DOCKER_PYTHON_LOAD_TESTING_CODE,
+        "test_multi_dev.docker_load_profile()",
+        "logger.info('Waiting to allow auto conversation join...')",
+        f"sleep({CORRESP_JOIN_TIMEOUT_S})",
+        "logger.info('Finished waiting, terminating...')",
+        "pytest.profile.terminate()",
+        "logger.info('Exiting after waiting.')",
+
+    ])
+    docker_container_old.run_python_code(
+        python_code, print_output=False, background=True
+    )
+    python_code = "\n".join([
+        DOCKER_PYTHON_LOAD_TESTING_CODE,
+        "test_multi_dev.docker_load_profile()",
+        f"sleep({CORRESP_JOIN_TIMEOUT_S})",
+        "print('Correspondence DIDs:')",
+        "for c in pytest.profile.corresp_mngr.get_active_ids():",
+        "    print(c)",
+        "pytest.profile.terminate()",
+    ])
+    print("Joining...")
+    output = docker_container_new.run_python_code(
+        python_code, timeout=CORRESP_JOIN_TIMEOUT_S + 5,
+        print_output=True, background=False
+    ).split("Correspondence DIDs:")
+    c_ids: list[str] =[]
+    if len(output) == 2:
+        _, c_id_text = output
+        c_ids = [line.strip() for line in c_id_text.split("\n")]
+        c_ids = [c_id for c_id in c_ids if c_id != ""]
+        print(c_ids)
+
+    mark(
+        correspondence_id in c_ids,
         function_name()
     )
 
@@ -364,20 +423,29 @@ def run_tests():
     invitation = test_load_profile(pytest.containers[0])
     if invitation:
         test_add_device(pytest.containers[1], pytest.containers[0], invitation)
-
+        test_load_profile(pytest.containers[1])
     # create second profile with multiple devices
     test_setup_profile(pytest.containers[2])
     invitation = test_load_profile(pytest.containers[2])
     if invitation:
         test_add_device(pytest.containers[3], pytest.containers[2], invitation)
+        test_load_profile(pytest.containers[3])
 
     # create correspondence & share accross profiles
     invitation = test_create_correspondence(pytest.containers[0])
     if invitation:
-        # test_device_loaded_correspondence(pytest.containers[1], corresp_id)
+        corresp_id = did_from_blockchain_id(
+            invitation['blockchain_invitation']['blockchain_id'])
+        # check that profile1's second device automatically joins the correspondence
+        # test_auto_join_correspondence(
+        #     pytest.containers[0], pytest.containers[1], corresp_id)
+        
+        # test that profile2 can join the correspondence given an invitation
         test_join_correspondence(
             pytest.containers[0], pytest.containers[2], invitation
         )
+        test_auto_join_correspondence(
+            pytest.containers[2], pytest.containers[3], corresp_id)
 
     # create second profile with multiple devices
     test_cleanup()

@@ -1,3 +1,5 @@
+from walidentity.did_manager import did_from_blockchain_id
+from threading import Lock
 from walidentity.did_manager import blockchain_id_from_did
 import os
 from walytis_beta_api import decode_short_id
@@ -14,6 +16,9 @@ from dataclasses_json import dataclass_json
 import mutablockchain
 import json
 from walidentity.key_store import KeyStore
+from walytis_beta_api import Block
+from walidentity.utils import logger
+WALYTIS_BLOCK_TOPIC = "Endra"
 
 
 @dataclass_json
@@ -109,7 +114,9 @@ class Correspondence:
             PrivateBlockchain(
                 group_did_manager,
                 virtual_layer_name="PrivateBlockchain",
-            )
+                block_received_handler=self._on_block_received
+            ),
+            block_received_handler=self._on_block_received
         )
 
     @classmethod
@@ -127,6 +134,7 @@ class Correspondence:
 
     def invite(self) -> dict:
         return self.blockchain.base_blockchain.group_blockchain.invite_member()
+
     @classmethod
     def join(
         cls, invitation: dict | str,
@@ -134,6 +142,9 @@ class Correspondence:
         member: DidManager
     ) -> 'Correspondence':
         return cls(GroupDidManager.join(invitation, group_key_store, member))
+
+    def _on_block_received(self, block: Block):
+        logger.info(f"Endra-Correspondence: Received block: {block.topics}")
 
     def delete(self):
         self.blockchain.delete()
@@ -157,22 +168,31 @@ class CorrespondenceRegistration(InfoBlock):
 
     @classmethod
     def create(
-        cls, correspondence_id: str, active: bool
+        cls, correspondence_id: str, active: bool, invitation: dict | None,
     ) -> 'CorrespondenceRegistration':
 
         info_content = {
             "correspondence_blockchain": correspondence_id,
-            "active": active
+            "active": active,
+            "invitation": invitation,
         }
         return cls.new(info_content)
 
     @property
-    def correspondence_blockchain(self):
+    def correspondence_blockchain(self) -> str:
         return self.info_content["correspondence_blockchain"]
 
     @property
-    def active(self):
+    def active(self) -> bool:
         return self.info_content["active"]
+
+    @property
+    def invitation(self) -> dict | None:
+        return self.info_content["invitation"]
+
+
+class CorrespondenceExistsError(Exception):
+    pass
 
 
 class CorrespondenceManager:
@@ -182,10 +202,12 @@ class CorrespondenceManager:
     """
 
     def __init__(self, profile_did_manager: GroupDidManager):
+        self.lock = Lock()
         self.profile_did_manager = profile_did_manager
         self.key_store_dir = os.path.dirname(
             self.profile_did_manager.key_store.key_store_path
         )
+        self._terminate = False
 
         # cached list of archived  Correspondence IDs
         self._archived_corresp_ids: set[str] = set()
@@ -193,54 +215,86 @@ class CorrespondenceManager:
         self._load_correspondences()  # load Correspondence objects
 
     def add(self) -> Correspondence:
-        # the GroupDidManager keystore file is located in self.key_store_dir
-        # and named according to the created GroupDidManager's blockchain ID
-        # and its KeyStore's key is automatically added to
-        # self.profile_did_manager.key_store
-        correspondence = Correspondence.create(
-            self.key_store_dir, member=self.profile_did_manager
-        )
+        with self.lock:
+            if self._terminate:
+                raise Exception(
+                    "CorrespondenceManager.add: we're shutting down"
+                )
+            # the GroupDidManager keystore file is located in self.key_store_dir
+            # and named according to the created GroupDidManager's blockchain ID
+            # and its KeyStore's key is automatically added to
+            # self.profile_did_manager.key_store
+            correspondence = Correspondence.create(
+                self.key_store_dir,
+                member=self.profile_did_manager
+            )
+            invitation = correspondence.invite()
+            # register Correspondence on blockchain
+            self._register_correspondence(
+                correspondence.did, True, invitation
+            )
 
-        # register Correspondence on blockchain
-        self._register_correspondence(
-            correspondence.did, True
-        )
+            # add to internal collection of Correspondence objects
+            self.correspondences.update({correspondence.did: correspondence})
+            return correspondence
 
-        # add to internal collection of Correspondence objects
-        self.correspondences.update({correspondence.did: correspondence})
-        return correspondence
+    def join(self, invitation: dict | str, register=True) -> Correspondence:
+        """
+        Args:
+            register: whether or not the new correspondence still needs to be
+                        registered on our Profile's blockchain
+        """
+        with self.lock:
 
-    def join(self, invitation:dict|str) -> Correspondence:
-        # the GroupDidManager keystore file is located in self.key_store_dir
-        # and named according to the created GroupDidManager's blockchain ID
-        # and its KeyStore's key is automatically added to
-        # self.profile_did_manager.key_store
-        correspondence = Correspondence.join(
-            invitation=invitation,
-            group_key_store=self.key_store_dir,
-            member=self.profile_did_manager
-        )
+            if self._terminate:
+                raise Exception(
+                    "CorrespondenceManager.add: we're shutting down")
 
-        # register Correspondence on blockchain
-        self._register_correspondence(
-            correspondence.did, True
-        )
+            if isinstance(invitation, str):
+                invitation_d = json.loads(invitation)
+            else:
+                invitation_d = invitation
+            corresp_id = did_from_blockchain_id(
+                invitation_d["blockchain_invitation"]["blockchain_id"]
+            )
+            if corresp_id in self.correspondences or corresp_id in self._archived_corresp_ids:
+                raise CorrespondenceExistsError()
 
-        # add to internal collection of Correspondence objects
-        self.correspondences.update({correspondence.did: correspondence})
-        return correspondence
+            # the GroupDidManager keystore file is located in self.key_store_dir
+            # and named according to the created GroupDidManager's blockchain ID
+            # and its KeyStore's key is automatically added to
+            # self.profile_did_manager.key_store
+            correspondence = Correspondence.join(
+                invitation=invitation_d,
+                group_key_store=self.key_store_dir,
+                member=self.profile_did_manager
+            )
 
-    def archive(self, correspondence_id: str):
-        self.correspondences[correspondence_id].terminate()
+            if register:
+                # register Correspondence on blockchain
+                self._register_correspondence(
+                    correspondence.did, True, invitation_d
+                )
+            # add to internal collection of Correspondence objects
+            self.correspondences.update({correspondence.did: correspondence})
 
-        # register archiving on blockchain
-        self._register_correspondence(correspondence_id, False)
+            return correspondence
 
-        # manage internal lists of Correspondences
-        self.correspondences.pop(correspondence_id)
-        self._archived_corresp_ids.add(correspondence_id)
+    def archive(self, correspondence_id: str, register=True):
+        with self.lock:
+            self.correspondences[correspondence_id].terminate()
 
-    def _register_correspondence(self, correspondence_id: str, active: bool):
+            if register:
+                # register archiving on blockchain
+                self._register_correspondence(correspondence_id, False, None)
+
+            # manage internal lists of Correspondences
+            self.correspondences.pop(correspondence_id)
+            self._archived_corresp_ids.add(correspondence_id)
+
+    def _register_correspondence(
+        self, correspondence_id: str, active: bool, invitation: dict | None
+    ):
         """Update a correspondence' registration, activating or archiving it.
 
         Args:
@@ -249,15 +303,16 @@ class CorrespondenceManager:
         """
         correspondence_registration = CorrespondenceRegistration.create(
             correspondence_id,
-            active
+            active,
+            invitation
         )
         correspondence_registration.sign(
             self.profile_did_manager.get_control_key()
         )
-
-        self.profile_did_manager.blockchain.add_block(
+        self.profile_did_manager.add_block(
             correspondence_registration.generate_block_content(),
-            topics=correspondence_registration.walytis_block_topic
+            topics=[WALYTIS_BLOCK_TOPIC,
+                    correspondence_registration.walytis_block_topic]
         )
 
     def _read_correspondence_registry(self) -> tuple[set[str], set[str]]:
@@ -309,38 +364,68 @@ class CorrespondenceManager:
         return self.correspondences[corresp_id]
 
     def _load_correspondences(self) -> None:
-        correspondences = []
+        with self.lock:
+            correspondences = []
 
-        active_correspondence_ds, _archived_corresp_ids = self._read_correspondence_registry()
-        for correspondence_id in active_correspondence_ds:
-            # figure out the filepath of this correspondence' KeyStore
-            key_store_path = os.path.join(
-                self.key_store_dir,
-                blockchain_id_from_did(correspondence_id) + ".json"
-            )
-            # get this correspondence' KeyStore Key ID
-            keystore_key_id = KeyStore.get_keystore_pubkey(key_store_path)
-            # get the Key from self.profile_did_manager's KeyStore
-            key_store_key = self.profile_did_manager.key_store.get_key(
-                keystore_key_id
-            )
-            # load the correspondence' KeyStore
-            key_store = KeyStore(key_store_path, key_store_key)
-            correspondence = Correspondence(
-                group_did_manager=GroupDidManager(
-                    key_store,
-                    self.profile_did_manager
+            active_correspondence_ds, _archived_corresp_ids = self._read_correspondence_registry()
+            new_correspondences = []
+            for correspondence_id in active_correspondence_ds:
+                # figure out the filepath of this correspondence' KeyStore
+                key_store_path = os.path.join(
+                    self.key_store_dir,
+                    blockchain_id_from_did(correspondence_id) + ".json"
                 )
-            )
-            correspondences.append(correspondence)
-        self.correspondences = dict([
-            (correspondence.did, correspondence)
-            for correspondence in correspondences
-        ])
-        self._archived_corresp_ids = _archived_corresp_ids
+                if not os.path.exists(key_store_path):
+                    new_correspondences.append(correspondence_id)
+                    continue
+                # get this correspondence' KeyStore Key ID
+                keystore_key_id = KeyStore.get_keystore_pubkey(key_store_path)
+                # get the Key from self.profile_did_manager's KeyStore
+                key_store_key = self.profile_did_manager.key_store.get_key(
+                    keystore_key_id
+                )
+                # load the correspondence' KeyStore
+                key_store = KeyStore(key_store_path, key_store_key)
+                correspondence = Correspondence(
+                    group_did_manager=GroupDidManager(
+                        group_key_store=key_store,
+                        member=self.profile_did_manager
+                    )
+                )
+                correspondences.append(correspondence)
+            self.correspondences = dict([
+                (correspondence.did, correspondence)
+                for correspondence in correspondences
+            ])
+            self._archived_corresp_ids = _archived_corresp_ids
+            
+            
+            for correspondence_id in new_correspondences:
+                print("New correspondence:",correspondence_id)
 
+    def on_correspondence_registration_received(self, block: Block):
+        if self._terminate:
+            return
+        crsp_registration = CorrespondenceRegistration.load_from_block_content(
+            block.content
+        )
+        logger.info(f"CorrespondenceManager: got registration for {crsp_registration.correspondence_blockchain}")
+        
+        # update lists of active and archived Correspondences
+        try:
+            if crsp_registration.active:
+                self.join(crsp_registration.invitation, register=False)
+                logger.info("CorrespondenceManager: added new Correspondence")
+            else:
+                self.archive(
+                    crsp_registration.correspondence_blockchain, register=False)
+                logger.info("CorrespondenceManager: archived Correspondence")
+        except CorrespondenceExistsError:
+            logger.info("CorrespondenceManager: we already have this Correspondence!")
+            pass
     def terminate(self):
-        pass
+        with self.lock:
+            self._terminate = True
 
     def delete(self):
         pass
@@ -361,6 +446,8 @@ class Profile:
         self.corresp_mngr = CorrespondenceManager(
             profile_did_manager=self.profile_did_manager
         )
+        self.profile_did_manager.block_received_handler = self._on_block_received
+        self.profile_did_manager.load_missed_blocks()
 
     @classmethod
     def create(cls, config_dir: str, key: Key) -> 'Profile':
@@ -374,8 +461,6 @@ class Profile:
         profile_did_manager = GroupDidManager.create(
             profile_did_keystore, device_did_manager
         )
-        device_did_keystore = KeyStore(device_keystore_path, key)
-        profile_did_keystore = KeyStore(profile_keystore_path, key)
 
         return cls(
             profile_did_manager=profile_did_manager,
@@ -391,7 +476,9 @@ class Profile:
         profile_did_keystore = KeyStore(profile_keystore_path, key)
 
         profile_did_manager = GroupDidManager(
-            profile_did_keystore, device_did_keystore
+            group_key_store=profile_did_keystore,
+            member=device_did_keystore,
+            auto_load_missed_blocks=False
         )
         return cls(
             profile_did_manager=profile_did_manager,
@@ -419,6 +506,24 @@ class Profile:
         return cls(
             profile_did_manager=profile_did_manager,
         )
+
+    def _on_block_received(self, block: Block):
+        if WALYTIS_BLOCK_TOPIC == block.topics[0]:
+            match block.topics[1]:
+                case CorrespondenceRegistration.walytis_block_topic:
+                    self.corresp_mngr.on_correspondence_registration_received(
+                        block
+                    )
+                case _:
+                    logger.warning(
+                        "Endra Profile: Received unhandled block with topics: "
+                        f"{block.topics}"
+                    )
+        else:
+            logger.warning(
+                "Endra Profile: Received unhandled block with topics: "
+                f"{block.topics}"
+            )
 
     def delete(self):
         self.profile_did_manager.delete()

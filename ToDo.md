@@ -1,3 +1,3 @@
-
+- [ ] tests: work on the Endra functionality for test_auto_join_correspondence
 - [ ] message content format
     - [ ] research existing standards

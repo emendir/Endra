@@ -1,5 +1,7 @@
+from walidentity.did_manager_blocks import get_info_blocks
+from walytis_beta_api import Blockchain, join_blockchain, JoinFailureError
 from walidentity.did_manager import did_from_blockchain_id
-from threading import Lock
+from threading import Lock, Event
 from walidentity.did_manager import blockchain_id_from_did
 import os
 from walytis_beta_api import decode_short_id
@@ -172,15 +174,15 @@ class CorrespondenceRegistration(InfoBlock):
     ) -> 'CorrespondenceRegistration':
 
         info_content = {
-            "correspondence_blockchain": correspondence_id,
+            "correspondence_id": correspondence_id,
             "active": active,
             "invitation": invitation,
         }
         return cls.new(info_content)
 
     @property
-    def correspondence_blockchain(self) -> str:
-        return self.info_content["correspondence_blockchain"]
+    def correspondence_id(self) -> str:
+        return self.info_content["correspondence_id"]
 
     @property
     def active(self) -> bool:
@@ -197,8 +199,6 @@ class CorrespondenceExistsError(Exception):
 
 class CorrespondenceManager:
     """Manages a collection of correspondences, managing adding archiving them.
-
-
     """
 
     def __init__(self, profile_did_manager: GroupDidManager):
@@ -213,6 +213,47 @@ class CorrespondenceManager:
         self._archived_corresp_ids: set[str] = set()
         self.correspondences: dict[str, Correspondence] = dict()
         self._load_correspondences()  # load Correspondence objects
+        self._process_invitations = False
+        self.correspondences_to_join: dict[str,
+                                           CorrespondenceRegistration | None] = {}
+
+    def process_invitations(self) -> None:
+        # logger.debug(
+        #     f"Processing invitations: {len(self.correspondences_to_join)}"
+        # )
+        _correspondences_to_join: dict[str,
+                                       CorrespondenceRegistration | None] = {}
+        for correspondence_id in self.correspondences_to_join.keys():
+            registration = self.correspondences_to_join[correspondence_id]
+            if not registration:
+                # logger.info("JAJ: finding blockchain invitation...")
+
+                registrations = get_info_blocks(
+                    CorrespondenceRegistration,
+                    self.profile_did_manager.blockchain
+                )
+                invitation: CorrespondenceRegistration | None = None
+                for registration in registrations.reverse():
+                    if registration.active:
+                        if registration.correspondence_id == correspondence_id:
+                            invitation = registration.invitation
+                if not invitation:
+                    error_message = (
+                        "BUG: "
+                        "In trying to join already joined Correspondence, "
+                        "couldn't find a matching CorrespondenceRegistration."
+
+                    )
+                    logger.warning(error_message)
+                    continue
+            correspondence = self.join_already_joined(
+                correspondence_id, registration)
+            if not correspondence:
+                _correspondences_to_join.update(
+                    {correspondence_id: correspondence})
+        self.correspondences_to_join = _correspondences_to_join
+
+        self._process_invitations = True
 
     def add(self) -> Correspondence:
         with self.lock:
@@ -238,7 +279,7 @@ class CorrespondenceManager:
             self.correspondences.update({correspondence.did: correspondence})
             return correspondence
 
-    def join(self, invitation: dict | str, register=True) -> Correspondence:
+    def join_from_invitation(self, invitation: dict | str, register=True) -> Correspondence:
         """
         Args:
             register: whether or not the new correspondence still needs to be
@@ -278,6 +319,43 @@ class CorrespondenceManager:
             # add to internal collection of Correspondence objects
             self.correspondences.update({correspondence.did: correspondence})
 
+            return correspondence
+
+    def join_already_joined(self, correspondence_id: str, registration: CorrespondenceRegistration) -> Correspondence | None:
+        """Join a Coresp. which our Profile has joined but member hasn't."""
+        with self.lock:
+            # logger.info("JAJ: Joining already joined Correspondence...")
+            key_store_path = os.path.join(
+                self.key_store_dir,
+                blockchain_id_from_did(correspondence_id) + ".json"
+            )
+            key = Key.create(CRYPTO_FAMILY)
+            self.profile_did_manager.key_store.add_key(key)
+            key_store = KeyStore(key_store_path, key)
+
+            # logger.info("JAJ: Joining blockchain...")
+            blockchain_id = blockchain_id_from_did(correspondence_id)
+            DidManager.assign_keystore(key_store, blockchain_id)
+            try:
+                # join blockchain, preprocessing existing blocks
+                blockchain = Blockchain.join(
+                    registration.invitation["blockchain_invitation"],
+                    appdata_dir=DidManager.get_blockchain_appdata_path(
+                        key_store
+                    ),
+                )
+                blockchain.terminate()
+            except JoinFailureError:
+                return None
+            # logger.info("Loading correspondence...")
+            correspondence = Correspondence(
+                group_did_manager=GroupDidManager(
+                    group_key_store=key_store,
+                    member=self.profile_did_manager
+                )
+            )
+
+            self.correspondences.update({correspondence.did: correspondence})
             return correspondence
 
     def archive(self, correspondence_id: str, register=True):
@@ -340,7 +418,7 @@ class CorrespondenceManager:
                     block.long_id
                 ).content
             )
-            correspondence_bc_id = crsp_registration.correspondence_blockchain
+            correspondence_bc_id = crsp_registration.correspondence_id
 
             # update lists of active and archived Correspondences
             if crsp_registration.active:
@@ -398,10 +476,10 @@ class CorrespondenceManager:
                 for correspondence in correspondences
             ])
             self._archived_corresp_ids = _archived_corresp_ids
-            
-            
-            for correspondence_id in new_correspondences:
-                print("New correspondence:",correspondence_id)
+
+            self.correspondences_to_join = dict([
+                (cid, None) for cid in new_correspondences
+            ])
 
     def on_correspondence_registration_received(self, block: Block):
         if self._terminate:
@@ -409,23 +487,39 @@ class CorrespondenceManager:
         crsp_registration = CorrespondenceRegistration.load_from_block_content(
             block.content
         )
-        logger.info(f"CorrespondenceManager: got registration for {crsp_registration.correspondence_blockchain}")
-        
+        # logger.info(f"CorrespondenceManager: got registration for {
+        #             crsp_registration.correspondence_id}")
+
         # update lists of active and archived Correspondences
         try:
             if crsp_registration.active:
-                self.join(crsp_registration.invitation, register=False)
-                logger.info("CorrespondenceManager: added new Correspondence")
+                if not self._process_invitations:
+                    self.correspondences_to_join.update({
+                        crsp_registration.correspondence_id: crsp_registration
+                    })
+                    # logger.info(
+                    #     "CorrespondenceManager: not yet joining Correspondence")
+                else:
+                    self.join_from_invitation(
+                        crsp_registration.invitation, register=False)
+                    # logger.info(
+                    #     "CorrespondenceManager: added new Correspondence")
             else:
                 self.archive(
-                    crsp_registration.correspondence_blockchain, register=False)
-                logger.info("CorrespondenceManager: archived Correspondence")
+                    crsp_registration.correspondence_id, register=False)
+                # logger.info("CorrespondenceManager: archived Correspondence")
         except CorrespondenceExistsError:
-            logger.info("CorrespondenceManager: we already have this Correspondence!")
+            # logger.info(
+            #     "CorrespondenceManager: we already have this Correspondence!")
             pass
+
     def terminate(self):
+        if self._terminate:
+            return
         with self.lock:
             self._terminate = True
+            for correspondence in self.correspondences.values():
+                correspondence.terminate()
 
     def delete(self):
         pass
@@ -442,12 +536,16 @@ class Profile:
         self,
         profile_did_manager: GroupDidManager,
     ):
+
         self.profile_did_manager = profile_did_manager
+        self.profile_did_manager.block_received_handler = self._on_block_received
+
         self.corresp_mngr = CorrespondenceManager(
             profile_did_manager=self.profile_did_manager
         )
-        self.profile_did_manager.block_received_handler = self._on_block_received
         self.profile_did_manager.load_missed_blocks()
+        # start joining new correspondeces only after loading missed blocks
+        self.corresp_mngr.process_invitations()
 
     @classmethod
     def create(cls, config_dir: str, key: Key) -> 'Profile':

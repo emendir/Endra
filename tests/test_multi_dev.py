@@ -10,7 +10,7 @@ import shutil
 import tempfile
 from walidentity.utils import logger, LOG_PATH
 import json
-
+from brenthy_docker import DockerShellError
 import _testing_utils
 import walidentity
 import pytest
@@ -95,11 +95,13 @@ def test_preparations():
 def test_create_docker_containers():
     print("Setting up docker containers...")
     threads = []
+    pytest.containers = [None]*N_DOCKER_CONTAINERS
     for i in range(N_DOCKER_CONTAINERS):
         def task(number):
-            pytest.containers.append(
-                EndraDocker(container_name=f"{CONTAINER_NAME_PREFIX}{number}")
+            pytest.containers[number]=EndraDocker(
+                container_name=f"{CONTAINER_NAME_PREFIX}{number}"
             )
+            
         thread = Thread(target=task, args=(i,))
         thread.start()
         threads.append(thread)
@@ -142,7 +144,7 @@ def test_setup_profile(docker_container: EndraDocker):
     ])
     output_lines = docker_container.run_python_code(
         python_code, print_output=False, timeout=PROFILE_CREATE_TIMEOUT_S,
-         background=False
+        background=False
     ).split("\n")
     last_line = output_lines[-1] if len(output_lines) > 0 else None
     mark(
@@ -170,9 +172,10 @@ def test_load_profile(docker_container: EndraDocker) -> dict | None:
         "print(f'DOCKER: Loaded Profile: {type(pytest.profile)}')",
         "pytest.profile.terminate()",
     ])
-
+    # breakpoint()
     output_lines = docker_container.run_python_code(
-        python_code, print_output=False, timeout=PROFILE_CREATE_TIMEOUT_S, background=False
+        python_code, print_output=False,
+        timeout=PROFILE_CREATE_TIMEOUT_S, background=False
     ).split("\n")
     if len(output_lines) < 2:
         mark(
@@ -181,7 +184,11 @@ def test_load_profile(docker_container: EndraDocker) -> dict | None:
         )
         return None
     last_line = output_lines[-1].strip()
-    invitation = json.loads(output_lines[-2].strip().replace("'", '"'))
+    try:
+        invitation = json.loads(output_lines[-2].strip().replace("'", '"'))
+    except json.decoder.JSONDecodeError:
+        logger.warning(f"Error getting invitation: {output_lines[-2]}")
+        invitation = None
     mark(
         last_line == "DOCKER: Loaded Profile: <class 'endra.endra_api.Profile'>",
         function_name()
@@ -247,10 +254,9 @@ def test_add_device(
             json.dumps(invitation)}')",
         "pytest.profile.terminate()",
     ])
-    print("Joining...")
     output_lines = docker_container_new.run_python_code(
         python_code, timeout=PROFILE_JOIN_TIMEOUT_S + 5, print_output=False,
-         background=False
+        background=False
     ).split("\n")
     last_line = output_lines[-1].strip()
     last_line
@@ -269,7 +275,7 @@ def docker_create_correspondence() -> Correspondence:
 
 def docker_join_correspondence(invitation: str | dict):
     logger.info("DOCKER: Joining Correspondence...")
-    corresp = pytest.profile.corresp_mngr.join(invitation)
+    corresp = pytest.profile.corresp_mngr.join_from_invitation(invitation)
     print(corresp.did)
     logger.info("Joined Endra Correspondence, waiting to get control key...")
 
@@ -291,10 +297,10 @@ def test_create_correspondence(docker_container: EndraDocker) -> dict | None:
         "print(json.dumps(invitation))",
         "print(f'DOCKER: Created Correspondence: {type(corresp)}')",
         "pytest.profile.terminate()",
-        "corresp.terminate()",
     ])
     output_lines = docker_container.run_python_code(
-        python_code, print_output=False, timeout=PROFILE_CREATE_TIMEOUT_S, background=False
+        python_code, print_output=False,
+        timeout=PROFILE_CREATE_TIMEOUT_S, background=False
     ).split("\n")
     if len(output_lines) < 2:
         mark(
@@ -345,10 +351,9 @@ def test_join_correspondence(
         "pytest.profile.terminate()",
         "corresp.terminate()",
     ])
-    print("Joining...")
     output_lines = docker_container_new.run_python_code(
         python_code, timeout=CORRESP_JOIN_TIMEOUT_S + 5,
-        print_output=True, background=False
+        print_output=False, background=False
     ).split("\n")
     second_last_line = output_lines[-2].strip()
     corresp_id = output_lines[-1].strip()
@@ -390,17 +395,19 @@ def test_auto_join_correspondence(
         "    print(c)",
         "pytest.profile.terminate()",
     ])
-    print("Joining...")
-    output = docker_container_new.run_python_code(
-        python_code, timeout=CORRESP_JOIN_TIMEOUT_S + 5,
-        print_output=True, background=False
-    ).split("Correspondence DIDs:")
-    c_ids: list[str] =[]
+    try:
+        output = docker_container_new.run_python_code(
+            python_code, timeout=CORRESP_JOIN_TIMEOUT_S + 5,
+            print_output=False, background=False
+        ).split("Correspondence DIDs:")
+    except DockerShellError as e:
+        print(e)
+        breakpoint()
+    c_ids: list[str] = []
     if len(output) == 2:
         _, c_id_text = output
         c_ids = [line.strip() for line in c_id_text.split("\n")]
         c_ids = [c_id for c_id in c_ids if c_id != ""]
-        print(c_ids)
 
     mark(
         correspondence_id in c_ids,
@@ -437,15 +444,18 @@ def run_tests():
         corresp_id = did_from_blockchain_id(
             invitation['blockchain_invitation']['blockchain_id'])
         # check that profile1's second device automatically joins the correspondence
-        # test_auto_join_correspondence(
-        #     pytest.containers[0], pytest.containers[1], corresp_id)
-        
+        test_auto_join_correspondence(
+            pytest.containers[0], pytest.containers[1], corresp_id)
+
         # test that profile2 can join the correspondence given an invitation
         test_join_correspondence(
             pytest.containers[0], pytest.containers[2], invitation
         )
         test_auto_join_correspondence(
-            pytest.containers[2], pytest.containers[3], corresp_id)
+            pytest.containers[2],
+            pytest.containers[3],
+            corresp_id
+        )
 
     # create second profile with multiple devices
     test_cleanup()

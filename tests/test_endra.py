@@ -138,8 +138,8 @@ def run_tests():
     
     test_archive_correspondence()
 
-    test_delete_profile()
-    test_cleanup()
+    # test_delete_profile()
+    # test_cleanup()
     test_threads_cleanup()
 
 

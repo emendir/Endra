@@ -12,9 +12,6 @@ RUN for SUBFOLDER in /opt/Endra/tests/endra_docker/python_packages/*; do pip ins
 
 RUN pip install --break-system-packages --root-user-action ignore -e /opt/Endra
 
-# REMOVE THIS when a stable version of WalIdentity is put into requirements.txt
-RUN pip install --break-system-packages --root-user-action ignore -e /opt/WalIdentity
-
 
 # RUN pip show WalIdentity
 ## Run with:

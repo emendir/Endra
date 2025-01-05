@@ -1,1 +1,1 @@
-from .endra_api import Profile, Correspondence, Message, MessageContent
+from .endra_api import Profile, Message, MessageContent, Correspondence

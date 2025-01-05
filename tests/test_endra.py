@@ -14,6 +14,7 @@ import mutablockchain
 import private_blocks
 import endra
 from endra import Profile, MessageContent, Correspondence
+from walidentity import GroupDidManager
 walytis_api.log.PRINT_DEBUG = False
 
 _testing_utils.assert_is_loaded_from_source(
@@ -53,8 +54,6 @@ def test_preparations():
 
 
 def test_cleanup():
-    if pytest.corresp:
-        pytest.corresp.delete()
     if pytest.profile:
         pytest.profile.delete()
     shutil.rmtree(pytest.profile_config_dir)
@@ -64,54 +63,45 @@ def test_create_profile():
     pytest.profile = Profile.create(pytest.profile_config_dir, pytest.KEY)
     existing_blockchain_ids = waly.list_blockchain_ids()
     mark(
-        pytest.profile.profile_did_manager.blockchain.blockchain_id in existing_blockchain_ids
-        and pytest.profile.profile_did_manager.member_did_manager.blockchain.blockchain_id in existing_blockchain_ids,
+        pytest.profile.did_manager.blockchain.blockchain_id in existing_blockchain_ids
+        and pytest.profile.did_manager.member_did_manager.blockchain.blockchain_id in existing_blockchain_ids,
         "Created profile."
     )
 
 
 def test_create_correspondence():
-    corresp_mngr = pytest.profile.corresp_mngr
-    pytest.corresp = corresp_mngr.add()
+    pytest.profile = pytest.profile
+    pytest.corresp = pytest.profile.create_correspondence()
     mark(
         isinstance(pytest.corresp, Correspondence),
         "Created correspondence."
     )
+    corresp = pytest.profile.get_correspondence( pytest.corresp.id)
     mark(
-        pytest.corresp == corresp_mngr.get_from_id( pytest.corresp.did),
-        "  -> get_from_id()"
+        isinstance(corresp, Correspondence) and
+        corresp.id ==pytest.corresp.id,
+        "  -> get_correspondence()"
     )
     mark(
-        pytest.corresp.did in corresp_mngr.get_active_ids()
-        and pytest.corresp.did not in corresp_mngr.get_archived_ids(),
-        "  -> get_active_ids() & get_archived_ids()"
-    )
-    active_ids, archived_ids = corresp_mngr._read_correspondence_registry()
-    mark(
-        pytest.corresp.did in active_ids
-        and pytest.corresp.did not in archived_ids,
-        "  -> _read_correspondence_registry()"
+        pytest.corresp.id in pytest.profile.get_active_correspondences()
+        and pytest.corresp.id not in pytest.profile.get_archived_correspondences(),
+        "  -> get_active_correspondences() & get_archived_correspondences()"
     )
 
 
 def test_archive_correspondence():
-    corresp_mngr = pytest.profile.corresp_mngr
-    corresp_mngr.archive(pytest.corresp.did)
+    pytest.profile = pytest.profile
+    pytest.profile.archive_correspondence(pytest.corresp.id)
     mark(
         isinstance(pytest.corresp, Correspondence),
         "Created correspondence."
     )
     mark(
-        pytest.corresp.did not in corresp_mngr.get_active_ids()
-        and pytest.corresp.did  in corresp_mngr.get_archived_ids(),
-        "  -> get_active_ids() & get_archived_ids()"
+        pytest.corresp.id not in pytest.profile.get_active_correspondences()
+        and pytest.corresp.id  in pytest.profile.get_archived_correspondences(),
+        "  -> get_active_correspondences() & get_archived_correspondences()"
     )
-    active_ids, archived_ids = corresp_mngr._read_correspondence_registry()
-    mark(
-        pytest.corresp.did not in active_ids
-        and pytest.corresp.did in archived_ids,
-        "  -> _read_correspondence_registry()"
-    )
+
 def test_create_message():
     message_content = MessageContent(
         "Hello there!", None
@@ -124,8 +114,8 @@ def test_delete_profile():
     pytest.profile.delete()
     existing_blockchain_ids = waly.list_blockchain_ids()
     mark(
-        pytest.profile.profile_did_manager.blockchain.blockchain_id not in existing_blockchain_ids
-        and pytest.profile.profile_did_manager.member_did_manager.blockchain.blockchain_id not in existing_blockchain_ids,
+        pytest.profile.did_manager.blockchain.blockchain_id not in existing_blockchain_ids
+        and pytest.profile.did_manager.member_did_manager.blockchain.blockchain_id not in existing_blockchain_ids,
         "Deleted profile."
     )
 
@@ -138,8 +128,8 @@ def run_tests():
     
     test_archive_correspondence()
 
-    # test_delete_profile()
-    # test_cleanup()
+    test_delete_profile()
+    test_cleanup()
     test_threads_cleanup()
 
 

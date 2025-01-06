@@ -1,3 +1,4 @@
+from walidentity.generics import GroupDidManagerWrapper
 from walidentity.did_manager_blocks import get_info_blocks
 from walytis_beta_api import Blockchain, join_blockchain, JoinFailureError
 from walidentity.did_manager import did_from_blockchain_id
@@ -70,16 +71,52 @@ class MessageContent:
             else None
         }))
 
+    @classmethod
+    def from_bytes(cls, data: bytes | bytearray) -> 'MessageContent':
+        return cls(**json.loads(data.decode()))
+    
+    @classmethod
+    def from_dict(cls, data:dict)->'MessageContent':
+        return cls(**data)
+    
     def __dict__(self):
         return self.to_dict()
 
 
-class Correspondence():
+class CorrespondenceDidManager(GroupDidManagerWrapper):
     def __init__(self, did_manager: GroupDidManager):
+        self._org_did_manager = did_manager
+        self._did_manager = MutaBlockchain(
+            PrivateBlockchain(
+                did_manager
+            )
+        )
+
+    @property
+    def did_manager(self):
+        return self._did_manager
+
+    @property
+    def org_did_manager(self):
+        return self._org_did_manager
+
+
+class Correspondence():
+    def __init__(self, did_manager: CorrespondenceDidManager):
         self._did_manager = did_manager
 
     def add_message(self, message: MessageContent):
-        pass
+        self._did_manager.add_block(message.to_bytes())
+
+    def get_messages(self):
+        [
+            print(block.content) 
+            for block in self._did_manager.get_blocks()
+        ]
+        return [
+            MessageContent.from_bytes(block.content) 
+            for block in self._did_manager.get_blocks()
+        ]
 
     @property
     def id(self):
@@ -142,6 +179,7 @@ class Profile:
             did_manager=DidManagerWithSupers.create(
                 config_dir=config_dir,
                 key=key,
+                super_type=CorrespondenceDidManager,
             ),
         )
 
@@ -151,6 +189,7 @@ class Profile:
             did_manager=DidManagerWithSupers.load(
                 config_dir=config_dir,
                 key=key,
+                super_type=CorrespondenceDidManager,
             ),
         )
 
@@ -166,6 +205,7 @@ class Profile:
                 invitation=invitation,
                 config_dir=config_dir,
                 key=key,
+                super_type=CorrespondenceDidManager,
             ),
         )
 

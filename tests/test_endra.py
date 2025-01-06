@@ -108,6 +108,10 @@ def test_create_message():
     )
     print(message_content.to_json())
     pytest.corresp.add_message(message_content)
+    mark(
+        pytest.corresp.get_messages()[-1].text == message_content.text,
+        "Created message."
+    )
 
 
 def test_delete_profile():

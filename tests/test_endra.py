@@ -76,10 +76,10 @@ def test_create_correspondence():
         isinstance(pytest.corresp, Correspondence),
         "Created correspondence."
     )
-    corresp = pytest.profile.get_correspondence( pytest.corresp.id)
+    corresp = pytest.profile.get_correspondence(pytest.corresp.id)
     mark(
         isinstance(corresp, Correspondence) and
-        corresp.id ==pytest.corresp.id,
+        corresp.id == pytest.corresp.id,
         "  -> get_correspondence()"
     )
     mark(
@@ -98,19 +98,44 @@ def test_archive_correspondence():
     )
     mark(
         pytest.corresp.id not in pytest.profile.get_active_correspondences()
-        and pytest.corresp.id  in pytest.profile.get_archived_correspondences(),
+        and pytest.corresp.id in pytest.profile.get_archived_correspondences(),
         "  -> get_active_correspondences() & get_archived_correspondences()"
     )
+
 
 def test_create_message():
     message_content = MessageContent(
         "Hello there!", None
     )
+
     print(message_content.to_json())
     pytest.corresp.add_message(message_content)
     mark(
-        pytest.corresp.get_messages()[-1].text == message_content.text,
+        pytest.corresp.get_messages()[-1].content.text == message_content.text,
         "Created message."
+    )
+
+
+def test_message_edit():
+    message_content = MessageContent(
+        "hello there", None
+    )
+    new_message_content = MessageContent(
+        "Hello there!!", None
+    )
+    pytest.corresp.add_message(message_content)
+
+    pytest.corresp.get_messages()[-1].edit(new_message_content)
+
+    mark(
+        pytest.corresp.get_messages()[-1].content.text == new_message_content.text,
+        "Edit message: content updates"
+    )
+    versions = pytest.corresp.get_messages()[-1].get_content_versions()
+    mark(
+        versions[0].text == message_content.text and
+        versions[1].text == new_message_content.text,
+        "Edit message: content version history"
     )
 
 
@@ -123,13 +148,14 @@ def test_delete_profile():
         "Deleted profile."
     )
 
+
 def run_tests():
     print("\nRunning tests for Endra:")
     test_preparations()
     test_create_profile()
     test_create_correspondence()
     test_create_message()
-    
+    test_message_edit()
     test_archive_correspondence()
 
     test_delete_profile()

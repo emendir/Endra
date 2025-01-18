@@ -29,28 +29,8 @@ WALYTIS_BLOCK_TOPIC = "Endra"
 @dataclass_json
 @dataclass
 class MessageContent:
-    # sender: str    # DID
-    # recipient: str  # DID
     text: str | None
     file_data: bytearray | None
-    # _base_block_cv: MutaBlock
-
-    # @classmethod
-    # def create(cls, text, file_data) -> 'MessageContent':
-    #     pass
-
-    # @classmethod
-    # def from_mutablock_cv(cls, mutablock_cv: mutablockchain.ContentVersion):
-    #     data = json.loads(mutablock_cv.content.decode())
-    #     return cls(
-    #         _base_block_cv=mutablock_cv,
-    #         text=data["text"],
-    #         file_data=data["file_data"],
-    #     )
-    #
-    # @property
-    # def cv_id(self) -> bytearray:    # same as MutaBlock.cv_id
-    #     return self.base_block_cv.cv_id
 
     def to_dict(self):
         return {
@@ -58,12 +38,6 @@ class MessageContent:
             "file_data": self.file_data
         }
 
-    # @staticmethod
-    # def _encode_message_content(text: str, file_data: bytearray) -> bytes:
-    #     return str.encode(json.dumps({
-    #         "text": text,
-    #         "file_data": bytes_to_string(file_data)
-    #     }))
     def to_bytes(self) -> bytes:
         return str.encode(json.dumps({
             "text": self.text,
@@ -82,6 +56,47 @@ class MessageContent:
     def __dict__(self):
         return self.to_dict()
 
+
+@dataclass
+class Message:
+    block: MutaBlock
+
+    @classmethod
+    def create(
+        cls,
+        correspondence: GroupDidManager,
+        message_content: MessageContent,
+    ) -> 'Message':
+        block = correspondence.blockchain.add_block(message_content.to_bytes())
+        return cls(
+            block,
+        )
+    @classmethod
+    def from_block(cls,block:MutaBlock):
+        return cls(block)
+    
+    @property
+    def content(self):
+        return MessageContent.from_bytes(self.block.content)
+    def edit(self, message_content: MessageContent) -> None:
+        self.block.edit(message_content.to_bytes())
+
+    def delete(self) -> None:
+        self.block.delete()
+
+    def get_content_versions(self) -> list[MessageContent]:
+        return [
+            MessageContent.from_bytes(cv.content)
+            for cv in self.block.get_content_versions()
+        ]
+
+    def get_author_did(self):
+        # TODO: get the author DID from the WalytisAuth block metadata
+        pass
+
+    def get_recipient_did(self):
+        # TODO: get the recipient's DID from the block's GroupDidManager blockchain
+        pass
 
 class CorrespondenceDidManager(GroupDidManagerWrapper):
     def __init__(self, did_manager: GroupDidManager):
@@ -109,12 +124,8 @@ class Correspondence():
         self._did_manager.add_block(message.to_bytes())
 
     def get_messages(self):
-        [
-            print(block.content) 
-            for block in self._did_manager.get_blocks()
-        ]
         return [
-            MessageContent.from_bytes(block.content) 
+            Message.from_block(block) 
             for block in self._did_manager.get_blocks()
         ]
 
@@ -122,41 +133,6 @@ class Correspondence():
     def id(self):
         return self._did_manager.did
 
-
-@dataclass
-class Message:
-    block: MutaBlock
-
-    @classmethod
-    def create(
-        cls,
-        correspondence: GroupDidManager,
-        message_content: MessageContent,
-    ) -> 'Message':
-        block = correspondence.blockchain.add_block(message_content.to_bytes())
-        return cls(
-            block,
-        )
-
-    def edit(self, message_content: MessageContent) -> None:
-        self.block.edit(message_content.to_bytes())
-
-    def delete(self) -> None:
-        self.block.delete()
-
-    def get_content_versions(self) -> list[MessageContent]:
-        return [
-            MessageContent.from_mutablock_cv(cv)
-            for cv in self.block.get_content_versions()
-        ]
-
-    def get_author_did(self):
-        # TODO: get the author DID from the WalytisAuth block metadata
-        pass
-
-    def get_recipient_did(self):
-        # TODO: get the recipient's DID from the block's GroupDidManager blockchain
-        pass
 
 
 CRYPTO_FAMILY = "EC-secp256k1"

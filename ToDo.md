@@ -1,3 +1,5 @@
-- [ ] tests: work on the Endra functionality for test_auto_join_correspondence
+## Next Steps
+- [ ] Message Class:
+  - [ ] methods for metadata: author, recipient?
 - [ ] message content format
     - [ ] research existing standards

@@ -14,4 +14,4 @@ dependencies = {file = ["requirements.txt"]}
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["endra"]
-namespaces = false
+namespaces = false 

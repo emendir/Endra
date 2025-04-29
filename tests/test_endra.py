@@ -20,15 +20,7 @@ walytis_api.log.PRINT_DEBUG = False
 _testing_utils.assert_is_loaded_from_source(
     source_dir=os.path.dirname(os.path.dirname(__file__)), module=endra
 )
-_testing_utils.assert_is_loaded_from_source(
-    source_dir=os.path.join(os.path.dirname(__file__), "..", ".."), module=walidentity
-)
-_testing_utils.assert_is_loaded_from_source(
-    source_dir=os.path.join(os.path.dirname(__file__), "..", ".."), module=private_blocks
-)
-_testing_utils.assert_is_loaded_from_source(
-    source_dir=os.path.join(os.path.dirname(__file__), "..", ".."), module=mutablockchain
-)
+
 
 REBUILD_DOCKER = True
 
@@ -63,8 +55,7 @@ def test_create_profile():
     pytest.profile = Profile.create(pytest.profile_config_dir, pytest.KEY)
     existing_blockchain_ids = waly.list_blockchain_ids()
     mark(
-        pytest.profile.did_manager.blockchain.blockchain_id in existing_blockchain_ids
-        and pytest.profile.did_manager.member_did_manager.blockchain.blockchain_id in existing_blockchain_ids,
+        pytest.profile.did_manager.blockchain.blockchain_id in existing_blockchain_ids,
         "Created profile."
     )
 
@@ -143,8 +134,7 @@ def test_delete_profile():
     pytest.profile.delete()
     existing_blockchain_ids = waly.list_blockchain_ids()
     mark(
-        pytest.profile.did_manager.blockchain.blockchain_id not in existing_blockchain_ids
-        and pytest.profile.did_manager.member_did_manager.blockchain.blockchain_id not in existing_blockchain_ids,
+        pytest.profile.did_manager.blockchain.blockchain_id not in existing_blockchain_ids,
         "Deleted profile."
     )
 

@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+service MyService {
+    rpc ProcessRequest (Request) returns (Response);
+    rpc Subscribe (SubscriptionRequest) returns (stream Message);
+}
+
+message Request {
+    string data = 1;
+}
+
+message Response {
+    string result = 1;
+}
+
+message SubscriptionRequest {
+    string topic = 1;
+}
+
+message Message {
+    string data = 1;
+}

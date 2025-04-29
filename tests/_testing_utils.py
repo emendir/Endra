@@ -68,9 +68,9 @@ def test_threads_cleanup() -> None:
         success = len(threads) == 1
         if success:
             break
-    mark(success, "thread cleanup")
     if not success:
         [print(x) for x in threads]
+    mark(success, "thread cleanup")
 
 
 def polite_wait(n_sec: int) -> None:

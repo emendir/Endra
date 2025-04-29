@@ -1,1 +1,2 @@
-from .endra_api import Profile, Message, MessageContent, Correspondence
+from .endra_model import Profile, Message, MessageContent, Correspondence, Device
+from .exceptions import JoinFailureError

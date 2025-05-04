@@ -1,28 +1,27 @@
 from typing import Callable
-from walidentity.generics import GroupDidManagerWrapper
-from walidentity.did_manager_blocks import get_info_blocks
-from walytis_beta_api import Blockchain, join_blockchain, JoinFailureError
-from walidentity.did_manager import did_from_blockchain_id
+from walytis_identities.generics import GroupDidManagerWrapper
+from walytis_identities.did_manager_blocks import get_info_blocks
+from walytis_beta_embedded import Blockchain, join_blockchain, JoinFailureError
+from walytis_identities.did_manager import did_from_blockchain_id
 from threading import Lock, Event
-from walidentity.did_manager import blockchain_id_from_did
+from walytis_identities.did_manager import blockchain_id_from_did
 import os
-from walytis_beta_api import decode_short_id
+from walytis_beta_embedded import decode_short_id
 from brenthy_tools_beta.utils import bytes_to_string
-from private_blocks import PrivateBlockchain, DataBlock
-from walidentity.did_objects import Key
-from walidentity.did_manager_blocks import InfoBlock
-from walidentity.group_did_manager import GroupDidManager
-from mutablockchain import MutaBlockchain, MutaBlock
-from waly_contacts import ContactsChain
-from walidentity import DidManager
+from walytis_offchain import PrivateBlockchain, DataBlock
+from walytis_identities.did_objects import Key
+from walytis_identities.did_manager_blocks import InfoBlock
+from walytis_identities.group_did_manager import GroupDidManager
+from walytis_mutability import MutaBlockchain, MutaBlock
+from walytis_identities import DidManager
 from dataclasses import dataclass
 from dataclasses_json import dataclass_json
-import mutablockchain
+import walytis_mutability
 import json
-from walidentity.key_store import KeyStore
-from walytis_beta_api import Block
-from walidentity.utils import logger
-from walidentity import DidManagerWithSupers
+from walytis_identities.key_store import KeyStore
+from walytis_beta_embedded import Block
+from walytis_identities.utils import logger
+from walytis_identities import DidManagerWithSupers
 
 WALYTIS_BLOCK_TOPIC = "Endra"
 

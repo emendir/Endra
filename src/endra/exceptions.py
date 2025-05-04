@@ -1,1 +1,1 @@
-from walytis_beta_api import JoinFailureError
+from walytis_beta_embedded import JoinFailureError

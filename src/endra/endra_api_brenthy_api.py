@@ -30,6 +30,7 @@ bap_protocol_modules: list[ModuleType] = []
 
 
 def request_router(request:bytearray):
+    pass
 
 
 

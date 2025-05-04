@@ -5,16 +5,16 @@ import shutil
 import tempfile
 
 import _testing_utils
-import walidentity
+import walytis_identities
 import pytest
 import walytis_beta_api as walytis_api
 from _testing_utils import mark, test_threads_cleanup
-from walidentity.did_objects import Key
-import mutablockchain
-import private_blocks
+from walytis_identities.did_objects import Key
+import walytis_mutability
+import walytis_offchain
 import endra
 from endra import Profile, MessageContent, Correspondence
-from walidentity import GroupDidManager
+from walytis_identities import GroupDidManager
 walytis_api.log.PRINT_DEBUG = False
 
 _testing_utils.assert_is_loaded_from_source(

@@ -181,11 +181,18 @@ class Profile:
 
         device_did_keystore = KeyStore(device_keystore_path, key)
         profile_did_keystore = KeyStore(profile_keystore_path, key)
+        
+        
+        logger.debug("Endra: creating DM...")
         device_did_manager = DidManager.create(device_did_keystore)
+        
+        logger.debug("Endra: creating GDM...")
         profile_did_manager = GroupDidManager.create(
             profile_did_keystore, device_did_manager
         )
+        logger.debug("Endra: terminating...")
         profile_did_manager.terminate()
+        logger.debug("Endra: reloading...")
         group_did_manager = GroupDidManager(
             profile_did_keystore,
             device_did_manager,

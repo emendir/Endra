@@ -1,45 +1,42 @@
 # Endra
 
-A fully distributed, no-servers, peer-to-peer encrypted messaging protocol.
+A peer-to-peer encrypted messaging protocol supporting multiple devices per user.
 
 See the EndraApp project for a GUI messaging application for desktop and mobile implementing Endra.
 
 ## Features
 
 - fully peer to peer, no servers of any kind
-- can work independently of the internet
-- full end-to-end encryption
-- ephemeral cryptography
-- multiple devices per profile (i.e. user account)
+- can function independently of internet connectivity
+- full end-to-end encryption ephemeral keys, algorithm-agnostic & future-proof
+- multiple devices per profile (user account)
 - multiple profiles per device
-- application for desktop and mobile (tested on Linux (Ubuntu x86-64) and Android (arm-64))
 - can be used as a library for embedding into other applications
-- implements W3C's DID standard
 - will become part of an expandable ecosystem incl. calendar and file-sharing
-
-### Disadvantages
-
-- higher resource usage on user devices compared to conventional messengers
-
-## Endra's Tech Stacks
-
-| Layer              | Data Features                                             | Networking Features                                                |
-| ------------------ | --------------------------------------------------------- | ------------------------------------------------------------------ |
-| Endra              | - organisation of identities, contacts & chats            | - instant messaging                                                |
-| Walytis-Mutability | - mutable blocks (for editable messages)                  |                                                                    |
-| Walytis-Offchain   | - private encrypted blocks<br>- contact authentication    | - communication encryption & authentication for Walytis-Identities |
-| Walytis-Identities | - identities, cryptographic key management                | - multi-device identities<br>- cryptographic key management        |
-| Walytis            | - new blocks notification<br>- data integrity maintenance |                                                                    |
-| IPFS/libp2p        | - file sharing                                            | - persistent addressing<br>- p2p routing<br>- NAT-hole-punching    |
-
-- **Endra:** a fully distributed, peer-to-peer encrypted messaging protocol, built on Walytis and its blockchain-overlays
-- **Walytis-Identities, Walytis-Offchain, Walytis-Mutability:** blockchain-overlays - systems providing an interface with additional features to Walytis databases
-- **Walytis:** a database blockchain - a lightweight, non-linear & flexible blockchain for distributed databases, built on IPFS
-- **IPFS:** Interplanetary File System - peer-to-peer file-sharing, built on libp2p
-- **libp2p:** a peer-to-peer OSI layer 4 communications protocol, on overlay over the internet protocol
+- [app for desktop and mobile](https://github.com/emendir/EndraApp) (tested on Linux (Ubuntu x86-64) and Android (arm-64))
 
 ## Project Status **EXPERIMENTAL**
 
 This library is very early in its development.
 
 The API of this library IS LIKELY TO CHANGE in the near future!
+
+## Documentation
+
+To learn how Endra works, visit the documentation in its dedicated repo at:
+
+https://github.com/emendir/WalytisTechnologies/blob/master/Endra/1-IntroToEndra.md
+
+## Related Projects
+### The Endra Tech Stack
+
+- [IPFS](https://ipfs.tech):  A p2p communication and content addressing protocol developed by ProtocolLabs.
+- [Walytis](https://github.com/emendir/Walytis_Beta): A flexible, lightweight, nonlinear database-blockchain, built on IPFS.
+- [WalytisIdentities](https://github.com/emendir/WalytisIdentities): P2P multi-controller cryptographic identity management, built on Walytis.
+- [WalytisOffchain](https://github.com/emendir/WalytisOffchain): secure access-controlled database-blockchain, built on WalytisIdentities.
+- [WalytisMutability](https://github.com/emendir/WalytisMutability): A Walytis blockchain overlay featuring block mutability.
+- [Endra](https://github.com/emendir/Endra): A p2p encrypted messaging protocol with multiple devices per user, built on Walytis.
+- [EndraApp](https://github.com/emendir/EndraApp): A p2p encrypted messenger supporting multiple devices per user, built on Walytis.
+
+### Alternative Technologies
+- Berty: a p2p messenger for mobile phones built on IPFS & OrbitDB

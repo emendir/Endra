@@ -9,7 +9,7 @@ BrenthyAPI remote procedure calls (RPCs) for Brenthy Core and its blockchains
 from applications, as well as for publishing events from Brenthy's blockchains
 to subscribed applications.
 """
-from loguru import logger
+from .log import logger_endra as logger
 import json
 import os
 from types import ModuleType

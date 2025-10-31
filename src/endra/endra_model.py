@@ -33,24 +33,26 @@ class MessageContent:
     file_data: bytearray | None
 
     def to_dict(self):
-        return {
-            "text": self.text,
-            "file_data": self.file_data
-        }
+        return {"text": self.text, "file_data": self.file_data}
 
     def to_bytes(self) -> bytes:
-        return str.encode(json.dumps({
-            "text": self.text,
-            "file_data": bytes_to_string(self.file_data) if self.file_data
-            else None
-        }))
+        return str.encode(
+            json.dumps(
+                {
+                    "text": self.text,
+                    "file_data": bytes_to_string(self.file_data)
+                    if self.file_data
+                    else None,
+                }
+            )
+        )
 
     @classmethod
-    def from_bytes(cls, data: bytes | bytearray) -> 'MessageContent':
+    def from_bytes(cls, data: bytes | bytearray) -> "MessageContent":
         return cls(**json.loads(data.decode()))
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'MessageContent':
+    def from_dict(cls, data: dict) -> "MessageContent":
         return cls(**data)
 
     def __dict__(self):
@@ -95,11 +97,7 @@ class Message:
 class CorrespondenceDidManager(GroupDidManagerWrapper):
     def __init__(self, did_manager: GroupDidManager):
         self._org_did_manager = did_manager
-        self._did_manager = MutaBlockchain(
-            PrivateBlockchain(
-                did_manager
-            )
-        )
+        self._did_manager = MutaBlockchain(PrivateBlockchain(did_manager))
 
     @property
     def did_manager(self):
@@ -110,7 +108,7 @@ class CorrespondenceDidManager(GroupDidManagerWrapper):
         return self._org_did_manager
 
 
-class Correspondence():
+class Correspondence:
     def __init__(self, did_manager: CorrespondenceDidManager):
         self._did_manager = did_manager
 
@@ -118,10 +116,7 @@ class Correspondence():
         self._did_manager.add_block(message_content.to_bytes())
 
     def get_messages(self):
-        return [
-            Message.from_block(block)
-            for block in self._did_manager.get_blocks()
-        ]
+        return [Message.from_block(block) for block in self._did_manager.get_blocks()]
 
     def create_invitation(self) -> dict:
         return self._did_manager.did_manager.base_blockchain.group_blockchain.invite_member()
@@ -159,33 +154,31 @@ class Profile:
     def __init__(
         self,
         did_manager: DidManagerWithSupers,
-            auto_run=True,
-            on_correspondence_event=None
-
+        auto_run=True,
+        on_correspondence_event=None,
     ):
         self.did_manager = did_manager
         self.did_manager.block_received_handler = self._on_block_received
         if auto_run:
             self.run()
+
     def _on_block_received(self, block):
         pass
-    def run(self)->None:
-        self.did_manager.load_missed_blocks()
-    
-    @classmethod
-    def create(cls, config_dir: str, key: Key, auto_run) -> 'Profile':
 
+    def run(self) -> None:
+        self.did_manager.load_missed_blocks()
+
+    @classmethod
+    def create(cls, config_dir: str, key: Key, auto_run) -> "Profile":
         device_keystore_path = os.path.join(config_dir, "device_keystore.json")
-        profile_keystore_path = os.path.join(
-            config_dir, "profile_keystore.json")
+        profile_keystore_path = os.path.join(config_dir, "profile_keystore.json")
 
         device_did_keystore = KeyStore(device_keystore_path, key)
         profile_did_keystore = KeyStore(profile_keystore_path, key)
-        
-        
+
         logger.debug("Endra: creating DM...")
         device_did_manager = DidManager.create(device_did_keystore)
-        
+
         logger.debug("Endra: creating GDM...")
         profile_did_manager = GroupDidManager.create(
             profile_did_keystore, device_did_manager
@@ -194,14 +187,12 @@ class Profile:
         profile_did_manager.terminate()
         logger.debug("Endra: reloading...")
         group_did_manager = GroupDidManager(
-            profile_did_keystore,
-            device_did_manager,
-            auto_load_missed_blocks=False
+            profile_did_keystore, device_did_manager, auto_load_missed_blocks=False
         )
         dmws = DidManagerWithSupers(
             did_manager=group_did_manager,
             super_type=CorrespondenceDidManager,
-            auto_load_missed_blocks=auto_run
+            auto_load_missed_blocks=auto_run,
         )
         return cls(
             did_manager=dmws,
@@ -209,60 +200,52 @@ class Profile:
         )
 
     @classmethod
-    def load(cls, config_dir: str, key: Key, auto_run=True) -> 'Profile':
+    def load(cls, config_dir: str, key: Key, auto_run=True) -> "Profile":
         device_keystore_path = os.path.join(config_dir, "device_keystore.json")
-        profile_keystore_path = os.path.join(
-            config_dir, "profile_keystore.json")
+        profile_keystore_path = os.path.join(config_dir, "profile_keystore.json")
 
         device_did_keystore = KeyStore(device_keystore_path, key)
         profile_did_keystore = KeyStore(profile_keystore_path, key)
         group_did_manager = GroupDidManager(
-            profile_did_keystore,
-            device_did_keystore,
-            auto_load_missed_blocks=False
+            profile_did_keystore, device_did_keystore, auto_load_missed_blocks=False
         )
         dmws = DidManagerWithSupers(
             did_manager=group_did_manager,
             super_type=CorrespondenceDidManager,
-            auto_load_missed_blocks=auto_run
+            auto_load_missed_blocks=auto_run,
         )
         return cls(
             did_manager=dmws,
             auto_run=auto_run,
-
         )
 
     def invite(self) -> dict:
         return self.did_manager.did_manager.invite_member()
 
     @classmethod
-    def join(cls,
-             invitation: str | dict, config_dir: str, key: Key, auto_run=True
-             ) -> 'Profile':
+    def join(
+        cls, invitation: str | dict, config_dir: str, key: Key, auto_run=True
+    ) -> "Profile":
         device_keystore_path = os.path.join(config_dir, "device_keystore.json")
-        profile_keystore_path = os.path.join(
-            config_dir, "profile_keystore.json")
+        profile_keystore_path = os.path.join(config_dir, "profile_keystore.json")
         device_did_keystore = KeyStore(device_keystore_path, key)
         profile_did_keystore = KeyStore(profile_keystore_path, key)
         device_did_manager = DidManager.create(device_did_keystore)
         logger.debug("EndraProtocol: joining profile...")
         profile_did_manager = GroupDidManager.join(
-            invitation,
-            profile_did_keystore,
-            device_did_manager
+            invitation, profile_did_keystore, device_did_manager
         )
 
         logger.debug("EndraProtocol: loading DMWS...")
         dmws = DidManagerWithSupers(
             did_manager=profile_did_manager,
             super_type=CorrespondenceDidManager,
-            auto_load_missed_blocks=auto_run
+            auto_load_missed_blocks=auto_run,
         )
         logger.debug("EndraProtocol: Joined Profile!")
         return cls(
             did_manager=dmws,
             auto_run=auto_run,
-
         )
 
     def create_correspondence(self) -> Correspondence:
@@ -301,5 +284,6 @@ class Profile:
 
     def __del__(self):
         self.terminate()
-    
+
+
 profiles: list[Profile]

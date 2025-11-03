@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 dynamic = ["dependencies"]
 name = "endra"
 authors = [{ name = "emendir" }]
-version = "0.2.0"
+version = "0.2.1"
 description = "A fully distributed, no-servers, peer-to-peer encrypted messaging protocol."
 readme = {file = "ReadMe.md", content-type = "text/markdown"}
 

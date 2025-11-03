@@ -13,7 +13,7 @@ See the EndraApp project for a GUI messaging application for desktop and mobile 
 - multiple profiles per device
 - can be used as a library for embedding into other applications
 - will become part of an expandable ecosystem incl. calendar and file-sharing
-- [app for desktop and mobile](https://github.com/emendir/EndraApp) (tested on Linux (Ubuntu x86-64) and Android (arm-64))
+- [app for desktop and mobile](https://github.com/emendir/EndraApp) (builds for Linux (Ubuntu 24 x86-64 & arm64), Android (arm64), Windows 11 (x86-64) and MacOS (x86-64 & arm64))
 
 ## Documentation
 

@@ -1,4 +1,4 @@
 dataclasses-json
-walytis_identities==0.2.0
+walytis_identities==0.2.1
 walytis-mutability==0.1.5
-walytis-offchain==0.2.0
+walytis-offchain==0.2.1

@@ -9,7 +9,7 @@ import walytis_identities
 import pytest
 import walytis_beta_api as walytis_api
 from _testing_utils import mark, test_threads_cleanup
-from walytis_identities.did_objects import Key
+from walytis_identities.key_objects import Key
 import walytis_mutability
 import walytis_offchain
 import endra

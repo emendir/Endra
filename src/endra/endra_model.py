@@ -9,7 +9,7 @@ import os
 from walytis_beta_embedded import decode_short_id
 from brenthy_tools_beta.utils import bytes_to_string
 from walytis_offchain import PrivateBlockchain, DataBlock
-from walytis_identities.did_objects import Key
+from walytis_identities.key_objects import Key
 from walytis_identities.did_manager_blocks import InfoBlock
 from walytis_identities.group_did_manager import GroupDidManager
 from walytis_mutability import MutaBlockchain, MutaBlock

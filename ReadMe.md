@@ -8,7 +8,11 @@ See the EndraApp project for a GUI messaging application for desktop and mobile 
 
 - fully peer to peer, no servers of any kind
 - can function independently of internet connectivity
-- full end-to-end encryption ephemeral keys, algorithm-agnostic & future-proof
+- cryptography:
+	- key rotation
+	- hybrid cryptography combining classical and post-quantum algorithms
+	- cryptographic agility (upgradable to novel algorithms)
+	- perfect forward and backward secrecy for transmissions
 - multiple devices per profile (user account)
 - multiple profiles per device
 - can be used as a library for embedding into other applications

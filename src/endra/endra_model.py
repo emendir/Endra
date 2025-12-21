@@ -22,76 +22,9 @@ from walytis_identities.key_store import KeyStore
 from walytis_beta_embedded import Block
 from walytis_identities.utils import logger
 from walytis_identities import DidManagerWithSupers
+from .message import Message, MessageContent, MessageContentPart  # noqa
 
 WALYTIS_BLOCK_TOPIC = "Endra"
-
-
-@dataclass_json
-@dataclass
-class MessageContent:
-    text: str | None
-    file_data: bytearray | None
-
-    def to_dict(self):
-        return {"text": self.text, "file_data": self.file_data}
-
-    def to_bytes(self) -> bytes:
-        return str.encode(
-            json.dumps(
-                {
-                    "text": self.text,
-                    "file_data": bytes_to_string(self.file_data)
-                    if self.file_data
-                    else None,
-                }
-            )
-        )
-
-    @classmethod
-    def from_bytes(cls, data: bytes | bytearray) -> "MessageContent":
-        return cls(**json.loads(data.decode()))
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "MessageContent":
-        return cls(**data)
-
-    def __dict__(self):
-        return self.to_dict()
-
-
-@dataclass
-class Message:
-    block: MutaBlock
-
-    @classmethod
-    def from_block(cls, block: MutaBlock):
-        return cls(block)
-
-    @property
-    def content(self):
-        if self.block.content is None:
-            breakpoint()
-        return MessageContent.from_bytes(self.block.content)
-
-    def edit(self, message_content: MessageContent) -> None:
-        self.block.edit(message_content.to_bytes())
-
-    def delete(self) -> None:
-        self.block.delete()
-
-    def get_content_versions(self) -> list[MessageContent]:
-        return [
-            MessageContent.from_bytes(cv.content)
-            for cv in self.block.get_content_versions()
-        ]
-
-    def get_author_did(self):
-        # TODO: get the author DID from the WalytisAuth block metadata
-        pass
-
-    def get_recipient_did(self):
-        # TODO: get the recipient's DID from the block's GroupDidManager blockchain
-        pass
 
 
 class CorrespondenceDidManager(GroupDidManagerWrapper):

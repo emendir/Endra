@@ -1,4 +1,4 @@
-from .endra_model import Profile, Message, MessageContent, Correspondence, Device
+from .endra_model import Profile, MessageContent, MessageContent, Correspondence, Device
 from .exceptions import JoinFailureError
 
 from . import log  # noqa

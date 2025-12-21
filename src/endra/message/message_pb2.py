@@ -14,19 +14,19 @@ _sym_db = _symbol_database.Default()
 from google.protobuf import struct_pb2 as google_dot_protobuf_dot_struct__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1fsrc/endra/message/message.proto\x12\tmessaging\x1a\x1cgoogle/protobuf/struct.proto\"n\n\x0bMessagePart\x12\x0f\n\x07part_id\x18\x01 \x01(\x05\x12\x12\n\nmedia_type\x18\x02 \x01(\t\x12)\n\x08metadata\x18\x03 \x01(\x0b\x32\x17.google.protobuf.Struct\x12\x0f\n\x07payload\x18\x04 \x01(\x0c\"T\n\x14MessagePartReference\x12\x0f\n\x07part_id\x18\x01 \x01(\x05\x12\x16\n\x0eref_message_id\x18\x02 \x01(\t\x12\x13\n\x0bref_part_id\x18\x03 \x01(\x05\"h\n\x07Message\x12)\n\x08metadata\x18\x01 \x01(\x0b\x32\x17.google.protobuf.Struct\x12\x32\n\rmessage_parts\x18\x02 \x03(\x0b\x32\x1b.messaging.MessagePartEntry\"|\n\x10MessagePartEntry\x12+\n\tpart_data\x18\x01 \x01(\x0b\x32\x16.messaging.MessagePartH\x00\x12\x33\n\x08part_ref\x18\x02 \x01(\x0b\x32\x1f.messaging.MessagePartReferenceH\x00\x42\x06\n\x04partb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1fsrc/endra/message/message.proto\x12\tmessaging\x1a\x1cgoogle/protobuf/struct.proto\"u\n\x12MessageContentPart\x12\x0f\n\x07part_id\x18\x01 \x01(\x05\x12\x12\n\nmedia_type\x18\x02 \x01(\t\x12)\n\x08metadata\x18\x03 \x01(\x0b\x32\x17.google.protobuf.Struct\x12\x0f\n\x07payload\x18\x04 \x01(\x0c\"T\n\x14MessagePartReference\x12\x0f\n\x07part_id\x18\x01 \x01(\x05\x12\x16\n\x0eref_message_id\x18\x02 \x01(\t\x12\x13\n\x0bref_part_id\x18\x03 \x01(\x05\"o\n\x0eMessageContent\x12)\n\x08metadata\x18\x01 \x01(\x0b\x32\x17.google.protobuf.Struct\x12\x32\n\rmessage_parts\x18\x02 \x03(\x0b\x32\x1b.messaging.MessagePartEntry\"\x83\x01\n\x10MessagePartEntry\x12\x32\n\tpart_data\x18\x01 \x01(\x0b\x32\x1d.messaging.MessageContentPartH\x00\x12\x33\n\x08part_ref\x18\x02 \x01(\x0b\x32\x1f.messaging.MessagePartReferenceH\x00\x42\x06\n\x04partb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'src.endra.message.message_pb2', globals())
 if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
-  _MESSAGEPART._serialized_start=76
-  _MESSAGEPART._serialized_end=186
-  _MESSAGEPARTREFERENCE._serialized_start=188
-  _MESSAGEPARTREFERENCE._serialized_end=272
-  _MESSAGE._serialized_start=274
-  _MESSAGE._serialized_end=378
-  _MESSAGEPARTENTRY._serialized_start=380
-  _MESSAGEPARTENTRY._serialized_end=504
+  _MESSAGECONTENTPART._serialized_start=76
+  _MESSAGECONTENTPART._serialized_end=193
+  _MESSAGEPARTREFERENCE._serialized_start=195
+  _MESSAGEPARTREFERENCE._serialized_end=279
+  _MESSAGECONTENT._serialized_start=281
+  _MESSAGECONTENT._serialized_end=392
+  _MESSAGEPARTENTRY._serialized_start=395
+  _MESSAGEPARTENTRY._serialized_end=526
 # @@protoc_insertion_point(module_scope)

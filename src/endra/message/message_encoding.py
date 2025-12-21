@@ -1,9 +1,9 @@
-from .message import Message, MessagePart, MessagePartReference
+from .message import MessageContent, MessageContentPart, MessagePartReference
 
 from google.protobuf.json_format import MessageToDict, ParseDict
 from .message_pb2 import (
-    Message as PbMessage,
-    MessagePart as PbMessagePart,
+    MessageContent as PbMessage,
+    MessageContentPart as PbMessagePart,
     MessagePartReference as PbMessagePartReference,
     MessagePartEntry,
 )
@@ -20,16 +20,16 @@ def struct_to_dict(s: Struct) -> dict:
     return dict(s)
 
 
-# Encode Python Message object to protobuf
+# Encode Python MessageContent object to protobuf
 
 
-def encode_message(msg: Message) -> bytes:
+def encode_message(msg: MessageContent) -> bytes:
     pb_msg = PbMessage()
     pb_msg.metadata.CopyFrom(dict_to_struct(msg.metadata))
 
     for part in msg.message_parts:
         entry = pb_msg.message_parts.add()
-        if isinstance(part, MessagePart):
+        if isinstance(part, MessageContentPart):
             entry.part_data.part_id = part.part_id
             entry.part_data.media_type = part.media_type
             entry.part_data.metadata.CopyFrom(dict_to_struct(part.metadata))
@@ -43,10 +43,10 @@ def encode_message(msg: Message) -> bytes:
     return pb_msg.SerializeToString()
 
 
-# Decode protobuf Message to Python Message object
+# Decode protobuf MessageContent to Python MessageContent object
 
 
-def decode_message(data: bytes) -> Message:
+def decode_message(data: bytes) -> MessageContent:
     pb_msg = PbMessage()
     pb_msg.ParseFromString(data)
     parts = []
@@ -54,7 +54,7 @@ def decode_message(data: bytes) -> Message:
         if entry.HasField("part_data"):
             part_data = entry.part_data
             parts.append(
-                MessagePart(
+                MessageContentPart(
                     part_id=part_data.part_id,
                     media_type=part_data.media_type,
                     metadata=struct_to_dict(part_data.metadata),
@@ -70,4 +70,4 @@ def decode_message(data: bytes) -> Message:
                     ref_part_id=part_ref.ref_part_id,
                 )
             )
-    return Message(metadata=struct_to_dict(pb_msg.metadata), message_parts=parts)
+    return MessageContent(metadata=struct_to_dict(pb_msg.metadata), message_parts=parts)

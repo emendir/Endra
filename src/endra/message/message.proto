@@ -4,7 +4,7 @@ package messaging;
 
 import "google/protobuf/struct.proto"; // for flexible metadata (like a dict)
 
-message MessagePart {
+message MessageContentPart {
     int32 part_id = 1;
     string media_type = 2;
     google.protobuf.Struct metadata = 3;
@@ -17,7 +17,7 @@ message MessagePartReference {
     int32 ref_part_id = 3;
 }
 
-message Message {
+message MessageContent {
     google.protobuf.Struct metadata = 1;
 
     // A message can contain either actual parts or references to parts
@@ -26,7 +26,7 @@ message Message {
 
 message MessagePartEntry {
     oneof part {
-        MessagePart part_data = 1;
+        MessageContentPart part_data = 1;
         MessagePartReference part_ref = 2;
     }
 }

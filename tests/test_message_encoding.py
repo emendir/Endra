@@ -1,15 +1,15 @@
 import _auto_run_with_pytest
 
 from endra.message import (
-    Message,
-    MessagePart,
+    MessageContent,
+    MessageContentPart,
     encode_message,
     decode_message,
 )
 
 
 def test_encode_decode_message():
-    message = Message(
+    message = MessageContent(
         {"version": 1},
         [],
     )

@@ -1,6 +1,6 @@
 ## Next Steps
 - [ ] audio calls ⏫ 
-- [ ] Message Class:
+- [ ] MessageContent Class:
 	- [ ] methods for metadata: author, recipient?
 - [ ] message content format
     - [ ] research existing standards

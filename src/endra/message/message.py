@@ -4,7 +4,7 @@ from dataclasses_json import dataclass_json
 
 @dataclass_json
 @dataclass
-class MessagePart:
+class MessageContentPart:
     part_id: int
     media_type: str
     metadata: dict
@@ -21,12 +21,12 @@ class MessagePartReference:
 
 @dataclass_json
 @dataclass
-class Message:
+class MessageContent:
     metadata: dict
-    message_parts: list[MessagePart | MessagePartReference]
+    message_parts: list[MessageContentPart | MessagePartReference]
 
-    def add_part(self, media_type, metadata, payload) -> MessagePart:
-        message_part = MessagePart(
+    def add_part(self, media_type, metadata, payload) -> MessageContentPart:
+        message_part = MessageContentPart(
             part_id=self.get_next_part_id(),
             media_type=media_type,
             metadata=metadata,
@@ -46,7 +46,7 @@ class Message:
     def get_next_part_id(self) -> int:
         return (
             max(
-                [mp.part_id for mp in self.message_parts if isinstance(mp, MessagePart)]
+                [mp.part_id for mp in self.message_parts if isinstance(mp, MessageContentPart)]
                 + [0]
             )
             + 1

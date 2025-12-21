@@ -1,53 +1,38 @@
+from walytis_mutability import MutaBlock
 from dataclasses import dataclass
-from dataclasses_json import dataclass_json
+from .message_content import MessageContent
 
 
-@dataclass_json
 @dataclass
-class MessageContentPart:
-    part_id: int
-    media_type: str
-    metadata: dict
-    payload: bytes
+class Message:
+    block: MutaBlock
 
+    @classmethod
+    def from_block(cls, block: MutaBlock):
+        return cls(block)
 
-@dataclass_json
-@dataclass
-class MessagePartReference:
-    part_id: int
-    ref_message_id: str
-    ref_part_id: int
+    @property
+    def content(self):
+        if self.block.content is None:
+            breakpoint()
+        return MessageContent.from_bytes(self.block.content)
 
+    def edit(self, message_content: MessageContent) -> None:
+        self.block.edit(message_content.to_bytes())
 
-@dataclass_json
-@dataclass
-class MessageContent:
-    metadata: dict
-    message_parts: list[MessageContentPart | MessagePartReference]
+    def delete(self) -> None:
+        self.block.delete()
 
-    def add_part(self, media_type, metadata, payload) -> MessageContentPart:
-        message_part = MessageContentPart(
-            part_id=self.get_next_part_id(),
-            media_type=media_type,
-            metadata=metadata,
-            payload=payload,
-        )
-        self.message_parts.append(message_part)
-        return message_part
+    def get_content_versions(self) -> list[MessageContent]:
+        return [
+            MessageContent.from_bytes(cv.content)
+            for cv in self.block.get_content_versions()
+        ]
 
-    def add_part_reference(self, ref_message_id: str, ref_part_id: int):
-        message_part_reference = MessagePartReference(
-            part_id=self.get_next_part_id(),
-            ref_message_id=ref_message_id,
-            ref_part_id=ref_part_id,
-        )
-        return message_part_reference
+    def get_author_did(self):
+        # TODO: get the author DID from the WalytisAuth block metadata
+        pass
 
-    def get_next_part_id(self) -> int:
-        return (
-            max(
-                [mp.part_id for mp in self.message_parts if isinstance(mp, MessageContentPart)]
-                + [0]
-            )
-            + 1
-        )
+    def get_recipient_did(self):
+        # TODO: get the recipient's DID from the block's GroupDidManager blockchain
+        pass

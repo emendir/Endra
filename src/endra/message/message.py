@@ -2,6 +2,9 @@ from walytis_mutability import MutaBlock
 from dataclasses import dataclass
 from .message_content import MessageContent
 
+BLOCK_TOPIC_MESSAGES = "EndraMessage"
+BLOCK_TOPIC_ATTACHMENTS = "EndraAttachments"
+
 
 @dataclass
 class Message:

@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package messaging;
+
+import "google/protobuf/struct.proto"; // for flexible metadata (like a dict)
+
+message EmbeddedContentPart {
+    int32 part_id = 1;
+    string media_type = 2;
+    google.protobuf.Struct rendering_metadata = 3;
+    bytes payload = 4;
+}
+
+message ReferencedContentPart {
+    int32 part_id = 1;
+    string ref_content_id = 2;
+    int32 ref_part_id = 3;
+}
+message AttachedContentPart {
+    int32 part_id = 1;
+    string attachment_id = 2;
+    google.protobuf.Struct rendering_metadata = 3;
+}
+
+message MessageContent {
+    google.protobuf.Struct message_metadata = 1;
+
+    // A message can contain either actual parts or references to parts
+    repeated MessagePartEntry message_parts = 2;
+}
+
+message MessagePartEntry {
+    oneof part {
+        EmbeddedContentPart part_data = 1;
+        ReferencedContentPart part_ref = 2;
+        AttachedContentPart part_attach = 3;
+    }
+}
+
+message MessageAttachment {
+  string media_type=1;
+  string payload_hash=2;
+  uint32 size=3;
+  google.protobuf.Struct derived_properties=4;
+  google.protobuf.Struct user_attributes=5;
+  bytes payload=6;
+}

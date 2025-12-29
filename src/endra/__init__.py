@@ -6,7 +6,8 @@ from .endra_model import (
 from .message import (
     Message,
     MessageContent,
-    MessageContentPart,
+    EmbeddedContentPart,
+    MessageAttachment,
 )
 from .exceptions import JoinFailureError
 

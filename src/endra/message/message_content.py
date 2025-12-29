@@ -1,45 +1,127 @@
-from enum import Enum
-from google.protobuf.struct_pb2 import Struct
-from .message_pb2 import (
-    MessageContent as PbMessage,
-    MessageContentPart as PbMessagePart,
-    MessagePartReference as PbMessagePartReference,
-    MessagePartEntry,
-)
-from google.protobuf.json_format import MessageToDict, ParseDict
 from dataclasses import dataclass
 from dataclasses_json import dataclass_json
+
+from abc import ABC
+
+
+class GenericContentPart(ABC):
+    """A subsection of a message content."""
+
+    part_id: int
 
 
 @dataclass_json
 @dataclass
-class MessageContentPart:
+class EmbeddedContentPart(GenericContentPart):
+    """A message content part that embeds its payload."""
+
     part_id: int
     media_type: str
-    metadata: dict
+    rendering_metadata: dict
     payload: bytes
 
 
 @dataclass_json
 @dataclass
-class MessagePartReference:
+class ReferencedContentPart(GenericContentPart):
+    """A message content part that refers to another message content part."""
+
     part_id: int
-    ref_message_id: str
+    ref_content_id: str
     ref_part_id: int
 
 
 @dataclass_json
 @dataclass
+class AttachedContentPart(GenericContentPart):
+    """A message content part that references a MessageAttachment."""
+
+    part_id: int
+    rendering_metadata: dict
+    attachment_id: str
+
+
+@dataclass_json
+@dataclass
+class MessageAttachment:
+    """Message Content Part Attachment
+
+
+    Data and non-rendering metadata of a file outsourced from a ContentPart
+    of a MessageContent.
+    The MessageAttachment is stored in a separate block from the MessageContent
+    block.
+    """
+
+    # media type is MIME-compatible
+    media_type: str
+    # hash includes algorithm and hash
+    payload_hash: str
+    # size is the number of bytes
+    size: int
+
+    # metadata extracted from payload depending on media type,
+    # e.g. image width & height, audio or video length, embedded title
+    derived_properties: dict
+    # metadata defined by user, e.g. filename, title-override
+    user_attributes: dict
+
+    # raw file data
+    payload: bytes
+
+    def _calculate_hash(self) -> str:
+        return ""
+
+    def verify_hash(self) -> bool:
+        return self.hash == self._calculate_hash()
+
+    def _calculate_size(self) -> None:
+        return len(self.payload)
+
+    @classmethod
+    def create(
+        cls,
+        media_type: str,
+        derived_properties: dict,
+        user_attributes: dict,
+        payload: bytes,
+    ):
+        attachment = cls(
+            media_type=media_type,
+            payload_hash=None,
+            size=None,
+            derived_properties=derived_properties,
+            user_attributes=user_attributes,
+            payload=payload,
+        )
+        attachment.size = attachment._calculate_size()
+        attachment.payload_hash = attachment._calculate_hash()
+        return attachment
+
+    # @classmethod
+    # def from_bytes(cls, data: bytes):
+    #     return decode_attachment(data)
+    #
+    # def to_bytes(
+    #     self,
+    # ) -> bytes:
+    #     return encode_attachment(self)
+
+
+@dataclass_json
+@dataclass
 class MessageContent:
-    metadata: dict
-    message_parts: list[MessageContentPart | MessagePartReference]
+    """The multi-part structure for a single version of a message's content."""
+
+    message_metadata: dict
+    message_parts: list[EmbeddedContentPart | ReferencedContentPart]
 
     def __init__(
         self,
-        metadata: dict = {},
-        message_parts: list[MessageContentPart | MessagePartReference] = None,
+        message_metadata: dict = {},
+        message_parts: list[EmbeddedContentPart | ReferencedContentPart] = None,
     ):
-        self.metadata = metadata
+        self.message_metadata = message_metadata
         self.message_parts = []
         if message_parts:
             for message_part in message_parts:
@@ -47,117 +129,82 @@ class MessageContent:
                     self.message_parts.append(message_part)
             for message_part in message_parts:
                 if not message_part.part_id:
-                    if isinstance(message_part, MessagePartReference):
-                        self.add_part_reference(
-                            message_part.ref_message_id, message_part.ref_part_id
+                    if isinstance(message_part, ReferencedContentPart):
+                        self.add_referenced_part(
+                            ref_content_id=message_part.ref_content_id,
+                            ref_part_id=message_part.ref_part_id,
                         )
-                    elif isinstance(message_part, MessageContentPart):
-                        self.add_part(
-                            message_part.media_type,
-                            message_part.metadata,
-                            message_part.payload,
+                    elif isinstance(message_part, EmbeddedContentPart):
+                        self.add_embedded_part(
+                            media_type=message_part.media_type,
+                            rendering_metadata=message_part.rendering_metadata,
+                            payload=message_part.payload,
+                        )
+                    elif isinstance(message_part, AttachedContentPart):
+                        self.add_attached_part(
+                            rendering_metadata=message_part.rendering_metadata,
+                            attachment_id=message_part.attachment_id,
                         )
                     else:
                         raise ValueError(
                             f"Unexpected object type in list: {type(message_part)}"
                         )
 
-    def add_part(self, media_type, metadata, payload) -> MessageContentPart:
-        message_part = MessageContentPart(
+    def add_embedded_part(
+        self, media_type, rendering_metadata, payload
+    ) -> EmbeddedContentPart:
+        """Create and add and EmbeddedContentPart to this MessageContent."""
+        message_part = EmbeddedContentPart(
             part_id=self.get_next_part_id(),
             media_type=media_type,
-            metadata=metadata,
+            rendering_metadata=rendering_metadata,
             payload=payload,
         )
         self.message_parts.append(message_part)
         return message_part
 
-    def add_part_reference(self, ref_message_id: str, ref_part_id: int):
-        message_part_reference = MessagePartReference(
+    def add_referenced_part(self, ref_content_id: str, ref_part_id: int):
+        """Create and add a ReferencedContentPart to this MessageContent."""
+        message_part_reference = ReferencedContentPart(
             part_id=self.get_next_part_id(),
-            ref_message_id=ref_message_id,
+            ref_content_id=ref_content_id,
             ref_part_id=ref_part_id,
         )
         return message_part_reference
 
+    def add_attached_part(
+        self,
+        rendering_metadata: dict,
+        attachment_id: str,
+    ):
+        """Create and add an AttachedContentPart to this MessageContent."""
+        message_part_attachment = AttachedContentPart(
+            part_id=self.get_next_part_id(),
+            rendering_metadata=rendering_metadata,
+            attachment_id=attachment_id,
+        )
+        self.message_parts.append(message_part_attachment)
+        return message_part_attachment
+
     def get_next_part_id(self) -> int:
+        """Get the next free part ID for the next content part to be created."""
         return (
             max(
                 [
                     mp.part_id
                     for mp in self.message_parts
-                    if isinstance(mp, MessageContentPart)
+                    if isinstance(mp, EmbeddedContentPart)
                 ]
                 + [0]
             )
             + 1
         )
 
-    @classmethod
-    def from_bytes(cls, data: bytes):
-        return decode_message(data)
-
-    def to_bytes(
-        self,
-    ) -> bytes:
-        return encode_message(self)
-
-
-def dict_to_struct(d: dict) -> Struct:
-    s = Struct()
-    s.update(d)
-    return s
-
-
-def struct_to_dict(s: Struct) -> dict:
-    return dict(s)
-
-
-def encode_message(msg: MessageContent) -> bytes:
-    pb_msg = PbMessage()
-    pb_msg.metadata.CopyFrom(dict_to_struct(msg.metadata))
-
-    for part in msg.message_parts:
-        entry = pb_msg.message_parts.add()
-        if isinstance(part, MessageContentPart):
-            entry.part_data.part_id = part.part_id
-            entry.part_data.media_type = part.media_type
-            entry.part_data.metadata.CopyFrom(dict_to_struct(part.metadata))
-            entry.part_data.payload = part.payload
-        elif isinstance(part, MessagePartReference):
-            entry.part_ref.part_id = part.part_id
-            entry.part_ref.ref_message_id = part.ref_message_id
-            entry.part_ref.ref_part_id = part.ref_part_id
-        else:
-            raise TypeError(f"Unknown part type: {type(part)}")
-    return pb_msg.SerializeToString()
-
-
-# Decode protobuf MessageContent to Python MessageContent object
-
-
-def decode_message(data: bytes) -> MessageContent:
-    pb_msg = PbMessage()
-    pb_msg.ParseFromString(data)
-    parts = []
-    for entry in pb_msg.message_parts:
-        if entry.HasField("part_data"):
-            part_data = entry.part_data
-            parts.append(
-                MessageContentPart(
-                    part_id=part_data.part_id,
-                    media_type=part_data.media_type,
-                    metadata=struct_to_dict(part_data.metadata),
-                    payload=part_data.payload,
-                )
-            )
-        elif entry.HasField("part_ref"):
-            part_ref = entry.part_ref
-            parts.append(
-                MessagePartReference(
-                    part_id=part_ref.part_id,
-                    ref_message_id=part_ref.ref_message_id,
-                    ref_part_id=part_ref.ref_part_id,
-                )
-            )
-    return MessageContent(metadata=struct_to_dict(pb_msg.metadata), message_parts=parts)
+    # @classmethod
+    # def from_bytes(cls, data: bytes):
+    #     return decode_message(data)
+    #
+    # def to_bytes(
+    #     self,
+    # ) -> bytes:
+    #     return encode_message(self)

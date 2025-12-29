@@ -2,3 +2,4 @@ dataclasses-json
 walytis_identities>=0.4.5,<0.5.0
 walytis-mutability==0.1.5
 walytis-offchain>=0.5.0,<0.6.0
+codec-versioning

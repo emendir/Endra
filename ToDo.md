@@ -1,5 +1,6 @@
 ## Next Steps
-- [ ] audio calls ⏫ 
+- [ ] MessageAttachment: calculate and verify payload hash
+- [ ] audio calls
 - [ ] MessageContent Class:
 	- [ ] methods for metadata: author, recipient?
 - [ ] message content format
@@ -10,11 +11,13 @@
 - [ ] sign content requests with group and member keys (in WalytisOffchain) ⏫
 - [ ] encrypt member lists?
 - [ ] ensure block ordering in WalytisMutability block udpates and Endra Messages
+- [ ] split messages with multiple large parts into multiple linked messages
+- [ ] expose message content part references via API? Yes.
 
 ## Features
 
-- [ ] rich text formatting
-- [ ] multimedia support
+- [x] rich text formatting
+- [x] multimedia support
 - [ ] file transmission (with transmission progress tracking for large files)
 - [ ] audio calls
 - [ ] video calls

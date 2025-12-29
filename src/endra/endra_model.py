@@ -22,7 +22,17 @@ from walytis_identities.key_store import KeyStore
 from walytis_beta_embedded import Block
 from walytis_identities.utils import logger
 from walytis_identities import DidManagerWithSupers
-from .message import Message, MessageContent, MessageContentPart  # noqa
+from .message import (
+    Message,
+    MessageContent,
+    MessageAttachment,
+    encode_attachment,
+    encode_message,
+    decode_attachment,
+    decode_message,
+    BLOCK_TOPIC_MESSAGES,
+    BLOCK_TOPIC_ATTACHMENTS,
+)  # noqa
 
 WALYTIS_BLOCK_TOPIC = "Endra"
 
@@ -45,11 +55,35 @@ class Correspondence:
     def __init__(self, did_manager: CorrespondenceDidManager):
         self._did_manager = did_manager
 
-    def add_message(self, message_content: MessageContent):
-        self._did_manager.add_block(message_content.to_bytes())
+    def add_message(
+        self,
+        message_content: MessageContent,
+    ):
+        self._did_manager.add_block(
+            encode_message(message_content), topics=BLOCK_TOPIC_MESSAGES
+        )
 
-    def get_messages(self):
-        return [Message.from_block(block) for block in self._did_manager.get_blocks()]
+    def add_attachment(self, attachment: MessageAttachment) -> str:
+        """Returns the attachment ID."""
+        block = self._did_manager.add_block(
+            encode_attachment(attachment),
+            topics=[BLOCK_TOPIC_ATTACHMENTS, attachment.media_type],
+        )
+        return block.short_id
+
+    def get_messages(self) -> list[Message]:
+        return [
+            Message.from_block(block)
+            for block in self._did_manager.get_blocks()
+            if BLOCK_TOPIC_MESSAGES in block.topics
+        ]
+
+    def get_attachments(self) -> list[MessageAttachment]:
+        return [
+            MessageAttachment.from_bytes(block.content)
+            for block in self._did_manager.get_blocks()
+            if BLOCK_TOPIC_ATTACHMENTS in block.topics
+        ]
 
     def create_invitation(self) -> dict:
         return self._did_manager.did_manager.base_blockchain.group_blockchain.invite_member()

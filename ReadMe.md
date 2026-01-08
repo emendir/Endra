@@ -8,13 +8,14 @@ See the EndraApp project for a GUI messaging application for desktop and mobile 
 
 - fully peer to peer, no servers of any kind
 - can function independently of internet connectivity
+- multiple devices per profile (user account)
+- multiple profiles per device
 - cryptography:
+	- full end-to-end encryption
 	- key rotation
 	- hybrid cryptography combining classical and post-quantum algorithms
 	- cryptographic agility (upgradable to novel algorithms)
 	- perfect forward and backward secrecy for transmissions
-- multiple devices per profile (user account)
-- multiple profiles per device
 - can be used as a library for embedding into other applications
 - will become part of an expandable ecosystem incl. calendar and file-sharing
 - [app for desktop and mobile](https://github.com/emendir/EndraApp) (builds for Linux (Ubuntu 24 x86-64 & arm64), Android (arm64), Windows 11 (x86-64) and MacOS (x86-64 & arm64))

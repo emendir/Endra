@@ -23,6 +23,7 @@ from walytis_beta_embedded import Block
 from walytis_identities.utils import logger
 from walytis_identities import DidManagerWithSupers
 from .message import (
+    get_message_content_parts,
     Message,
     MessageContent,
     MessageAttachment,
@@ -69,7 +70,7 @@ class Correspondence:
             encode_attachment(attachment),
             topics=[BLOCK_TOPIC_ATTACHMENTS, attachment.media_type],
         )
-        return block.short_id
+        return bytes(block.long_id)
 
     def get_messages(self) -> list[Message]:
         return [
@@ -80,10 +81,18 @@ class Correspondence:
 
     def get_attachments(self) -> list[MessageAttachment]:
         return [
-            MessageAttachment.from_bytes(block.content)
+            decode_attachment(block.content)
             for block in self._did_manager.get_blocks()
             if BLOCK_TOPIC_ATTACHMENTS in block.topics
         ]
+
+    def get_attachment(self, attachment_id: bytes) -> MessageAttachment:
+        return decode_attachment(self._did_manager.get_block(attachment_id).content)
+
+    def get_message_content_parts(self, message: Message):
+        return get_message_content_parts(
+            blockchain=self._did_manager, message_content=message.content
+        )
 
     def create_invitation(self) -> dict:
         return self._did_manager.did_manager.base_blockchain.group_blockchain.invite_member()

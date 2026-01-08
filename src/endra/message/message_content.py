@@ -27,7 +27,7 @@ class ReferencedContentPart(GenericContentPart):
     """A message content part that refers to another message content part."""
 
     part_id: int
-    ref_content_id: str
+    ref_content_id: bytes
     ref_part_id: int
 
 
@@ -38,7 +38,7 @@ class AttachedContentPart(GenericContentPart):
 
     part_id: int
     rendering_metadata: dict
-    attachment_id: str
+    attachment_id: bytes
 
 
 @dataclass_json
@@ -175,7 +175,7 @@ class MessageContent:
     def add_attached_part(
         self,
         rendering_metadata: dict,
-        attachment_id: str,
+        attachment_id: bytes,
     ):
         """Create and add an AttachedContentPart to this MessageContent."""
         message_part_attachment = AttachedContentPart(
@@ -199,6 +199,12 @@ class MessageContent:
             )
             + 1
         )
+
+    def get_message_part(self, part_id) -> GenericContentPart:
+        for part in self.message_parts:
+            if part.part_id == part_id:
+                return part
+        raise Exception(f"Part {part_id} not found in this message content.")
 
     # @classmethod
     # def from_bytes(cls, data: bytes):

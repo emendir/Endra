@@ -21,7 +21,8 @@ def test_encode_decode_message():
     message.add_embedded_part("Part2", {"scale": 1.1}, "IMAGE_PLACEHOLDER".encode())
     message.add_referenced_part("laskfjasfd", 3)
     message.add_attached_part(
-        rendering_metadata={"image": {"height": 800}}, attachment_id="as;ldkfjsd"
+        rendering_metadata={"image": {"height": 800}},
+        attachment_id="as;ldkfjsd".encode(),
     )
     assert decode_message(encode_message(message)) == message
     print(len(encode_message(message)))

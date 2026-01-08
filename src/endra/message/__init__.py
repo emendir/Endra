@@ -11,4 +11,9 @@ from .message_encoding import (
     encode_attachment,
     decode_attachment,
 )
-from .message import Message, BLOCK_TOPIC_ATTACHMENTS, BLOCK_TOPIC_MESSAGES
+from .message import (
+    Message,
+    BLOCK_TOPIC_ATTACHMENTS,
+    BLOCK_TOPIC_MESSAGES,
+    get_message_content_parts,
+)

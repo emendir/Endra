@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 dynamic = ["dependencies"]
 name = "endra"
 authors = [{ name = "emendir" }]
-version = "0.6.1"
+version = "0.6.2"
 description = "A fully distributed, no-servers, peer-to-peer encrypted messaging protocol."
 readme = {file = "ReadMe.md", content-type = "text/markdown"}
 
@@ -15,5 +15,5 @@ dependencies = {file = ["requirements.txt"]}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["endra"]
+include = ["endra", "endra.message", "endra.message.message_encoding_versions"]
 namespaces = false 

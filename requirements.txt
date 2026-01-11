@@ -3,6 +3,6 @@ protobuf
 
 dataclasses-json
 walytis_identities>=0.5.0,<0.6.0
-walytis-mutability==0.1.5
+walytis-mutability==0.1.6
 walytis-offchain>=0.5.1,<0.6.0
 codec-versioning
